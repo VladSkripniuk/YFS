@@ -15,6 +15,8 @@ class lock_server {
  protected:
   int nacquire;
   std::map<lock_protocol::lockid_t, int> locks;
+  pthread_cond_t cv;
+  pthread_mutex_t mp;
 
  public:
  	static const int FREE = 0;

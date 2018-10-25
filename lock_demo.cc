@@ -11,7 +11,8 @@
 #include <stdio.h>
 
 std::string dst;
-lock_client *lc;
+lock_client *lc1;
+lock_client *lc2;
 
 int
 main(int argc, char *argv[])
@@ -24,14 +25,14 @@ main(int argc, char *argv[])
   }
 
   dst = argv[1];
-  lc = new lock_client(dst);
-  r = lc->stat(1);
-  printf ("stat returned %d\n", r);
-  r = lc->acquire(1);
-  printf ("acquire returned %d\n", r);
-  r = lc->stat(1);
-  printf ("stat returned %d\n", r);
-  r = lc->acquire(1);
-  printf ("acquire returned %d\n", r);
-  r = lc->stat(1);
+  lc1 = new lock_client(dst);
+  lc2 = new lock_client(dst);
+
+  lc1->acquire(1);
+  lc1->acquire(2);
+  
+  lc1->release(1);
+  
+  lc1->release(2);
+
 }
