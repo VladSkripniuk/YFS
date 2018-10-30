@@ -34,11 +34,12 @@ lock_client::stat(lock_protocol::lockid_t lid)
 lock_protocol::status
 lock_client::acquire(lock_protocol::lockid_t lid)
 {
-  std::cout << "acquire start\n";
+  // std::cout << "acquire start\n";
   int r;
   int ret = cl->call(lock_protocol::acquire, cl->id(), lid, r);
   assert (ret == lock_protocol::OK);
-  std::cout << "acquire end\n";
+  // std::cout << "acquire end\n";
+  std::cout << "acquire res: " << r << "\n";
   return r;
   // return lock_protocol::RPCERR;
 }
@@ -46,11 +47,11 @@ lock_client::acquire(lock_protocol::lockid_t lid)
 lock_protocol::status
 lock_client::release(lock_protocol::lockid_t lid)
 {
-  std::cout << "release start\n";
+  // std::cout << "release start\n";
   int r;
   int ret = cl->call(lock_protocol::release, cl->id(), lid, r);
   assert (ret == lock_protocol::OK);
-  std::cout << "release end\n";
+  // std::cout << "release end\n";
   return r;
   // return lock_protocol::RPCERR;
 }

@@ -19,7 +19,7 @@ lock_protocol::status
 lock_server::stat(int clt, lock_protocol::lockid_t lid, int &r)
 {
   lock_protocol::status ret = lock_protocol::OK;
-  printf("stat request from clt %d\n", clt);
+  // printf("stat request from clt %d\n", clt);
   r = nacquire;
   return ret;
 }
@@ -27,17 +27,15 @@ lock_server::stat(int clt, lock_protocol::lockid_t lid, int &r)
 lock_protocol::status
 lock_server::acquire(int clt, lock_protocol::lockid_t lid, int &r)
 {
-	std::cout << "acquire mutex start\n";
-  std::cout << "acquire mutex locked\n";
+	// std::cout << "acquire mutex start\n";
+  // std::cout << "acquire mutex locked\n";
   std::cout << "acquire request from clt " << clt << ", lock id: " << lid << "\n";
   
-  std::map<lock_protocol::lockid_t,lock_t>::iterator it;
-  
   pthread_mutex_lock(&insert_new_lock_mp);
-  nacquire += 1;
-  std::cout << "nacquire: " << nacquire << "\n";
 
+  std::map<lock_protocol::lockid_t,lock_t>::iterator it;
   it = locks.find(lid);
+
 	if (it == locks.end()) {
   	lock_t lock;
     lock.lock = FREE;
@@ -59,13 +57,13 @@ lock_server::acquire(int clt, lock_protocol::lockid_t lid, int &r)
       it->second.lock = LOCKED;
       break;
     }
-    std::cout << "asleep\n";
+    // std::cout << "asleep\n";
     pthread_cond_wait(&(it->second.cv), &(it->second.mp));
-    std::cout << "awake\n";
+    // std::cout << "awake\n";
   }
    
   pthread_mutex_unlock(&(it->second.mp));
-  std::cout << "acquire mutex end\n";
+  // std::cout << "acquire mutex end\n";
 
   return lock_protocol::OK;
 }
@@ -73,15 +71,15 @@ lock_server::acquire(int clt, lock_protocol::lockid_t lid, int &r)
 lock_protocol::status
 lock_server::release(int clt, lock_protocol::lockid_t lid, int &r)
 {
+  std::cout << "release request from clt " << clt << ", lock id: " << lid << "\n";
   std::map<lock_protocol::lockid_t,lock_t>::iterator it;
   it = locks.find(lid);
   pthread_mutex_lock(&(it->second.mp));
-	// std::cout << "0: release request from clt " << clt << ", lock id: " << lid << "\n";
   
   // std::cout << "1: release request from clt " << clt << ", lock id: " << lid << "\n";
    
   nacquire -= 1;
-  std::cout << "released: " << nacquire << "\n";
+  // std::cout << "released: " << nacquire << "\n";
   if ((it != locks.end()) && (it->second.lock == LOCKED)) {
   
     // nacquire = nacquire - 1;
