@@ -12,13 +12,19 @@
 
 class lock_server {
 
+	struct lock_t {
+		int lock;
+		pthread_cond_t cv;
+	  pthread_mutex_t mp;
+	};
+
  protected:
   int nacquire;
-  std::map<lock_protocol::lockid_t, int> locks;
-  pthread_cond_t cv;
-  pthread_mutex_t mp;
+  std::map<lock_protocol::lockid_t, lock_t> locks;
+  pthread_mutex_t insert_new_lock_mp;
 
  public:
+
  	static const int FREE = 0;
  	static const int LOCKED = 1;
 

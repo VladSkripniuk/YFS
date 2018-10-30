@@ -562,16 +562,33 @@ rpcs::add_reply(unsigned int clt_nonce, unsigned int xid,
 		char *b, int sz)
 {
 	ScopedLock rwl(&reply_window_m_);
-	
-	auto it = reply_window_[clt_nonce].begin();
+	std::cout << "add_reply start\n";
+	if (reply_window_.find(clt_nonce) == reply_window_.end()) {
+		reply_window_[clt_nonce] = std::list<reply_t>();
+	}
 
-	while (it->xid < xid) {
+	auto clt_reply_window_ = reply_window_[clt_nonce];
+
+	auto it = clt_reply_window_.begin();
+
+	while ((it != clt_reply_window_.end()) && (it->xid < xid)) {
 		it++;
 	}
 
-	it->buf = b;
-	it->sz = sz;
-	it->cb_present = true;
+	if ((it == clt_reply_window_.end()) or (it->xid > xid)) {
+		reply_t reply(xid);
+		reply.buf = b;
+		reply.sz = sz;
+		reply.cb_present = true;
+	
+		clt_reply_window_.insert(it, reply);
+	}
+	else {
+		it->buf = b;
+		it->sz = sz;
+		it->cb_present = true;
+	}
+	std::cout << "add_reply end\n";
 }
 
 void
@@ -595,6 +612,7 @@ rpcs::checkduplicate_and_update(unsigned int clt_nonce, unsigned int xid,
 		unsigned int xid_rep, char **b, int *sz)
 {
 	ScopedLock rwl(&reply_window_m_);
+	std::cout << "checkduplicate_and_update start\n";
 
 	if (reply_window_.find(clt_nonce) == reply_window_.end()) {
 		reply_window_[clt_nonce] = std::list<reply_t>();
@@ -625,10 +643,9 @@ rpcs::checkduplicate_and_update(unsigned int clt_nonce, unsigned int xid,
 	if (status == NEW) {
 		auto it = clt_reply_window_.begin();
 
-		while (it->xid < xid) {
+		while ((it != clt_reply_window_.end()) && (it->xid < xid)) {
 			it++;
 		}
-
 		reply_t reply(xid);
 		reply.buf = NULL;
 		reply.sz = 0;
@@ -641,7 +658,7 @@ rpcs::checkduplicate_and_update(unsigned int clt_nonce, unsigned int xid,
 		free(clt_reply_window_.begin()->buf);
 		clt_reply_window_.pop_front();
 	}
-
+	std::cout << "checkduplicate_and_update end\n";
 	return status;
 }
 
