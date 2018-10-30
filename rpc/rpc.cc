@@ -562,6 +562,16 @@ rpcs::add_reply(unsigned int clt_nonce, unsigned int xid,
 		char *b, int sz)
 {
 	ScopedLock rwl(&reply_window_m_);
+	
+	auto it = reply_window_[clt_nonce].begin();
+
+	while (it->xid < xid) {
+		it++;
+	}
+
+	it->buf = b;
+	it->sz = sz;
+	it->cb_present = true;
 }
 
 void
@@ -586,7 +596,53 @@ rpcs::checkduplicate_and_update(unsigned int clt_nonce, unsigned int xid,
 {
 	ScopedLock rwl(&reply_window_m_);
 
-	return NEW;
+	if (reply_window_.find(clt_nonce) == reply_window_.end()) {
+		reply_window_[clt_nonce] = std::list<reply_t>();
+	}
+
+	auto clt_reply_window_ = reply_window_[clt_nonce];
+
+	rpcstate_t status = NEW;
+
+	for (auto it = clt_reply_window_.begin(); it != clt_reply_window_.end(); it++) {
+		if (it->xid == xid) {
+			if (it->cb_present) {
+				*b = it->buf;
+				*sz = it->sz;
+				status = DONE;
+			}
+			else {
+				status = INPROGRESS;	
+			}
+			break;
+		}
+	}
+
+	if (xid < clt_reply_window_.begin()->xid) {
+		status = FORGOTTEN;
+	}
+
+	if (status == NEW) {
+		auto it = clt_reply_window_.begin();
+
+		while (it->xid < xid) {
+			it++;
+		}
+
+		reply_t reply(xid);
+		reply.buf = NULL;
+		reply.sz = 0;
+		reply.cb_present = false;
+		
+		clt_reply_window_.insert(it, reply);
+	} 
+
+	while ((clt_reply_window_.begin() != clt_reply_window_.end()) && (clt_reply_window_.begin()->xid <= xid_rep)) {
+		free(clt_reply_window_.begin()->buf);
+		clt_reply_window_.pop_front();
+	}
+
+	return status;
 }
 
 //rpc handler
