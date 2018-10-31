@@ -12,21 +12,23 @@
 
 class lock_server {
 
-	struct lock_t {
-		int lock;
-		pthread_cond_t cv;
-	  pthread_mutex_t mp;
-	};
-
- protected:
+  class lock {
+  public:
+    int lock_state;
+    pthread_cond_t cond_var;
+  }; 
+    
+protected:
   int nacquire;
-  std::map<lock_protocol::lockid_t, lock_t> locks;
-  pthread_mutex_t insert_new_lock_mp;
+  std::map<lock_protocol::lockid_t, lock> locks;
+  
+  pthread_mutex_t acquire_mutex;
+  pthread_mutex_t release_mutex;
 
- public:
+public:
 
- 	static const int FREE = 0;
- 	static const int LOCKED = 1;
+  static const int FREE = 0;
+  static const int LOCKED = 1;
 
   lock_server();
   ~lock_server() {};
