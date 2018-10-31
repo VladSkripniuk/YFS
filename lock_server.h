@@ -22,8 +22,7 @@ protected:
   int nacquire;
   std::map<lock_protocol::lockid_t, lock> locks;
   
-  pthread_mutex_t acquire_mutex;
-  pthread_mutex_t release_mutex;
+  pthread_mutex_t release_acquire_mutex;
 
 public:
 

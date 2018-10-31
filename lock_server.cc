@@ -10,8 +10,7 @@
 lock_server::lock_server():
   nacquire (0)
 {
-  pthread_mutex_init(&acquire_mutex, NULL);
-  pthread_mutex_init(&release_mutex, NULL);
+  pthread_mutex_init(&release_acquire_mutex, NULL);
 }
 
 lock_protocol::status
@@ -26,7 +25,7 @@ lock_protocol::status
 lock_server::acquire(int clt, lock_protocol::lockid_t lid, int &r) {
 
   std::cout << "acquire request (clt " << clt << ", lock id: " << lid << ")\n";
-  pthread_mutex_lock(&acquire_mutex);
+  pthread_mutex_lock(&release_acquire_mutex);
   
   std::map<lock_protocol::lockid_t, lock>::iterator it;
   it = locks.find(lid);
@@ -49,11 +48,11 @@ lock_server::acquire(int clt, lock_protocol::lockid_t lid, int &r) {
       nacquire++;
       break;
     }
-    pthread_cond_wait(&(it->second.cond_var), &acquire_mutex);
+    pthread_cond_wait(&(it->second.cond_var), &release_acquire_mutex);
   }
 
   std::cout << "acquire done (clt " << clt << ", lock id: " << lid << ")\n";
-  pthread_mutex_unlock(&acquire_mutex);
+  pthread_mutex_unlock(&release_acquire_mutex);
 
   return lock_protocol::OK;
 }
@@ -62,7 +61,7 @@ lock_protocol::status
 lock_server::release(int clt, lock_protocol::lockid_t lid, int &r) {
   
   std::cout << "release request (clt " << clt << ", lock id: " << lid << ")\n";
-  pthread_mutex_lock(&release_mutex);
+  pthread_mutex_lock(&release_acquire_mutex);
 
   std::map<lock_protocol::lockid_t,lock>::iterator it;
   it = locks.find(lid);
@@ -73,7 +72,7 @@ lock_server::release(int clt, lock_protocol::lockid_t lid, int &r) {
     pthread_cond_broadcast(&(it->second.cond_var));
   }
  
-  pthread_mutex_unlock(&release_mutex);
+  pthread_mutex_unlock(&release_acquire_mutex);
 
   return lock_protocol::OK;
 }
