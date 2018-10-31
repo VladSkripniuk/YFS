@@ -642,8 +642,11 @@ rpcs::checkduplicate_and_update(unsigned int clt_nonce, unsigned int xid,
 		}
 	}
 
-	if (xid < clt_reply_window_iter->second.begin()->xid) {
+	if ((clt_reply_window_iter->second.begin() != clt_reply_window_iter->second.end()) && 
+		(xid < clt_reply_window_iter->second.begin()->xid) &&
+		(clt_reply_window_iter->second.begin()->xid <= xid_rep)) {
 		status = FORGOTTEN;
+		// status = NEW;
 	}
 
 	if (status == NEW) {
@@ -661,7 +664,9 @@ rpcs::checkduplicate_and_update(unsigned int clt_nonce, unsigned int xid,
 	} 
 
 	while ((clt_reply_window_iter->second.begin() != clt_reply_window_iter->second.end()) && (clt_reply_window_iter->second.begin()->xid <= xid_rep)) {
-		free(clt_reply_window_iter->second.begin()->buf);
+		if (clt_reply_window_iter->second.begin()->buf != NULL) {
+			free(clt_reply_window_iter->second.begin()->buf);
+		}
 		clt_reply_window_iter->second.pop_front();
 	}
 	// std::cout << "checkduplicate_and_update end\n";

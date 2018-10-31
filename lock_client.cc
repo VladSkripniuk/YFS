@@ -10,36 +10,37 @@
 
 lock_client::lock_client(std::string dst)
 {
-    printf("lock_client::lock_client\n");
-    sockaddr_in dstsock;
-    make_sockaddr(dst.c_str(), &dstsock);
-    cl = new rpcc(dstsock);
-    if (cl->bind() < 0) {
-        printf("lock_client: call bind\n");
-    }
+  printf("lock_client::lock_client\n");
+  sockaddr_in dstsock;
+  make_sockaddr(dst.c_str(), &dstsock);
+  cl = new rpcc(dstsock);
+  if (cl->bind() < 0) {
+    printf("lock_client: call bind\n");
+  }
 }
 
 int
 lock_client::stat(lock_protocol::lockid_t lid)
 {
-    std::cout << "stat start\n";
-    printf("lock_client::stat\n");
-    int r;
-    int ret = cl->call(lock_protocol::stat, cl->id(), lid, r);
-    assert (ret == lock_protocol::OK);
-    std::cout << "stat end\n";
-    return r;
+  printf("lock_client::stat\n");
+  int r;
+  int ret = cl->call(lock_protocol::stat, cl->id(), lid, r);
+  assert (ret == lock_protocol::OK);
+  return r;
 }
 
 lock_protocol::status
 lock_client::acquire(lock_protocol::lockid_t lid)
 {
-  // std::cout << "acquire start\n";
   int r;
   int ret = cl->call(lock_protocol::acquire, cl->id(), lid, r);
+  std::cout << "acquire res: " << ret << "\n";
+  std::cout << lock_protocol::OK << std::endl;
+  std::cout << lock_protocol::RETRY << std::endl;
+  std::cout << lock_protocol::RPCERR << std::endl;
+  std::cout << lock_protocol::NOENT << std::endl;
+  std::cout << lock_protocol::IOERR << std::endl;
   assert (ret == lock_protocol::OK);
-  // std::cout << "acquire end\n";
-  std::cout << "acquire res: " << r << "\n";
   return r;
   // return lock_protocol::RPCERR;
 }
@@ -47,11 +48,10 @@ lock_client::acquire(lock_protocol::lockid_t lid)
 lock_protocol::status
 lock_client::release(lock_protocol::lockid_t lid)
 {
-  // std::cout << "release start\n";
   int r;
   int ret = cl->call(lock_protocol::release, cl->id(), lid, r);
+  std::cout << "acquire res: " << ret << "\n";
   assert (ret == lock_protocol::OK);
-  // std::cout << "release end\n";
   return r;
   // return lock_protocol::RPCERR;
 }
