@@ -34,15 +34,8 @@ lock_client::acquire(lock_protocol::lockid_t lid)
 {
   int r;
   int ret = cl->call(lock_protocol::acquire, cl->id(), lid, r);
-  std::cout << "acquire res: " << ret << "\n";
-  std::cout << lock_protocol::OK << std::endl;
-  std::cout << lock_protocol::RETRY << std::endl;
-  std::cout << lock_protocol::RPCERR << std::endl;
-  std::cout << lock_protocol::NOENT << std::endl;
-  std::cout << lock_protocol::IOERR << std::endl;
   assert (ret == lock_protocol::OK);
   return r;
-  // return lock_protocol::RPCERR;
 }
 
 lock_protocol::status
@@ -50,9 +43,7 @@ lock_client::release(lock_protocol::lockid_t lid)
 {
   int r;
   int ret = cl->call(lock_protocol::release, cl->id(), lid, r);
-  std::cout << "acquire res: " << ret << "\n";
   assert (ret == lock_protocol::OK);
   return r;
-  // return lock_protocol::RPCERR;
 }
 
