@@ -122,16 +122,14 @@ fuseserver_write(fuse_req_t req, fuse_ino_t ino,
 }
 
 yfs_client::status
-fuseserver_createhelper(fuse_ino_t parent, const char *name,
-     mode_t mode, struct fuse_entry_param *e)
+fuseserver_createhelper(fuse_ino_t parent, const char *name, mode_t mode, struct fuse_entry_param *e)
 {
   // You fill this in
   return yfs_client::NOENT;
 }
 
 void
-fuseserver_create(fuse_req_t req, fuse_ino_t parent, const char *name,
-   mode_t mode, struct fuse_file_info *fi)
+fuseserver_create(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode, struct fuse_file_info *fi)
 {
   struct fuse_entry_param e;
   if( fuseserver_createhelper( parent, name, mode, &e ) == yfs_client::OK ) {
@@ -141,8 +139,7 @@ fuseserver_create(fuse_req_t req, fuse_ino_t parent, const char *name,
   }
 }
 
-void fuseserver_mknod( fuse_req_t req, fuse_ino_t parent, 
-    const char *name, mode_t mode, dev_t rdev ) {
+void fuseserver_mknod( fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode, dev_t rdev ) {
   struct fuse_entry_param e;
   if( fuseserver_createhelper( parent, name, mode, &e ) == yfs_client::OK ) {
     fuse_reply_entry(req, &e);
