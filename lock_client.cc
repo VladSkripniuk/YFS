@@ -18,7 +18,7 @@ lock_client::lock_client(std::string dst)
     printf("lock_client: call bind\n");
   }
 }
-
+ 
 int
 lock_client::stat(lock_protocol::lockid_t lid)
 {

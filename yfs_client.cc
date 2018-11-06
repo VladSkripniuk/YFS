@@ -92,4 +92,23 @@ yfs_client::getdir(inum inum, dirinfo &din)
 }
 
 
+// ---------------------------------------
+
+yfs_client::inum
+generate_new_inum(bool inum)
+{
+  return inum; // ha ha TODO
+}
+
+
+// We have to implement this thing
+yfs_client::status yfs_client::create(inum parent, const char *name)
+{
+
+  std::cout << "Hello"; 
+
+  return OK;
+}
+
+
 

@@ -7,9 +7,9 @@
 #include <vector>
 
 
-  class yfs_client {
+class yfs_client {
   extent_client *ec;
- public:
+public:
 
   typedef unsigned long long inum;
   enum xxstatus { OK, RPCERR, NOENT, IOERR, FBIG };
@@ -31,10 +31,10 @@
     unsigned long long inum;
   };
 
- private:
+private:
   static std::string filename(inum);
   static inum n2i(std::string);
- public:
+public:
 
   yfs_client(std::string, std::string);
 
@@ -44,6 +44,10 @@
 
   int getfile(inum, fileinfo &);
   int getdir(inum, dirinfo &);
-};
+
+  // TODO 
+  status create(inum, const char *);
+
+    };
 
 #endif 
