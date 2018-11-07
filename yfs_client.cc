@@ -8,13 +8,10 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-#include <random>
 
 
-yfs_client::yfs_client(std::string extent_dst, std::string lock_dst)
-{
+yfs_client::yfs_client(std::string extent_dst, std::string lock_dst) : generator(rd()), distribution(0,0xFFFFFFFFFFFFFFFF) {
   ec = new extent_client(extent_dst);
-
 }
 
 yfs_client::inum
@@ -99,6 +96,7 @@ yfs_client::inum
 yfs_client::generate_new_inum(int is_dir)
 {
   // return inum; // ha ha TODO
+  // TODO: generate inum not randomly
 
   inum inum = distribution(generator);
 
@@ -114,7 +112,7 @@ yfs_client::generate_new_inum(int is_dir)
 }
 
 std::istream &operator>>(std::istream &is, yfs_client::dir_content &obj) {
-  entries.clear();
+  obj.entries.clear();
   int number_of_entries;
   is >> number_of_entries;
 
@@ -123,35 +121,42 @@ std::istream &operator>>(std::istream &is, yfs_client::dir_content &obj) {
 
   for (int i = 0; i < number_of_entries; ++i) {
     is >> name >> inum;
-    dirent entry = { name, inum };
-    entries.push_back(entry);
+    yfs_client::dirent entry = { name, inum };
+    obj.entries.push_back(entry);
   }
 
   return is;
 }
 
 std::ostream &operator<<(std::ostream &os, yfs_client::dir_content &obj) {
-  int number_of_entries = entries.size();
-  os << number_of_entries;
+  int number_of_entries = obj.entries.size();
+  os << number_of_entries << " ";
 
-  for (int i = 0; i < number_of_entries; ++i) {
-    os << entries.head()->name << entries.head()->inum;
-    entries.pop_front();
+  auto it = obj.entries.begin();
+  while (it != obj.entries.end()) {
+    os << it->name << " " << it->inum << " ";
+    ++it;
   }
+  // for (int i = 0; i < number_of_entries; ++i) {
+    // os << obj.entries.begin()->name << obj.entries.begin()->inum;
+    // obj.entries.pop_front();
+  // }
 
   return os;
 
 }
 
-yfs_client::status yfs_client::create(inum parent, const char *name, int is_dir)
+yfs_client::status yfs_client::create(inum parent, const char *name, int is_dir, inum &ino)
 {
   std::string parent_dir_content_txt;
+  std::cout << "1\n";
   ec->get(parent, parent_dir_content_txt);
-
+  std::cout << "2\n";
   std::istringstream ist(parent_dir_content_txt);
   dir_content parent_dir_content;
   ist >> parent_dir_content;
-
+  std::cout << "len" << parent_dir_content.entries.size() << std::endl;
+  std::cout << "3\n";
   inum inum = generate_new_inum(is_dir);
   std::ostringstream ost;
 
@@ -162,15 +167,23 @@ yfs_client::status yfs_client::create(inum parent, const char *name, int is_dir)
     ost.str(std::string());
   }
   else {
+    std::cout << "4\n";
     ec->put(inum, std::string());
+    std::cout << "5\n";
   }
 
   dirent entry = { std::string(name), inum };
   parent_dir_content.entries.push_back(entry);
   
+  std::cout << ost.str() <<"a"<< std::endl;
   ost << parent_dir_content;
-
+  std::cout << "6\n";
+  // std::cout << ost.str()[:10] << std::endl;
   ec->put(parent, ost.str());
+  // ec->put(parent, "");
+  std::cout << "7\n";
+
+  ino = inum;
   
   return OK;
 }

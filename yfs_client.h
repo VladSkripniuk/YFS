@@ -6,6 +6,8 @@
 #include "extent_client.h"
 #include <vector>
 #include <list>
+#include <random>
+#include <unistd.h>
 
 
 class yfs_client {
@@ -37,8 +39,8 @@ public:
   public:
     // dir_content();
     // ~dir_content();
-    std::istream &operator>>(std::istream &is, yfs_client::dir_content &obj);
-    std::ostream &operator<<(std::ostream &os, yfs_client::dir_content &obj);
+    friend std::istream &operator>>(std::istream &is, yfs_client::dir_content &obj);
+    friend std::ostream &operator<<(std::ostream &os, yfs_client::dir_content &obj);
     std::list<dirent> entries;
   private:
     // inum id;
@@ -51,11 +53,13 @@ private:
     /* Seed */
   std::random_device rd;
 
-  /* Random number generator */
-  std::default_random_engine generator(rd());
+    /* Random number generator */
+  std::default_random_engine generator;
 
   /* Distribution on which to apply the generator */
-  std::uniform_int_distribution<long long unsigned> distribution(0,0xFFFFFFFFFFFFFFFF);
+  std::uniform_int_distribution<long long unsigned> distribution;
+
+
 
 public:
 
@@ -69,7 +73,8 @@ public:
   int getdir(inum, dirinfo &);
 
   // TODO 
-  status create(inum, const char *);
+  inum generate_new_inum(int);
+  status create(inum, const char *, int, inum &);
 
 };
 
