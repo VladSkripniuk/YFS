@@ -114,7 +114,12 @@ yfs_client::generate_new_inum(int is_dir)
 std::istream &operator>>(std::istream &is, yfs_client::dir_content &obj) {
   obj.entries.clear();
   int number_of_entries;
-  is >> number_of_entries;
+  if (is.rdbuf()->in_avail() == 0) {
+    number_of_entries = 0;
+  }
+  else {
+    is >> number_of_entries;
+  }
 
   std::string name;
   unsigned long long inum;
@@ -137,10 +142,6 @@ std::ostream &operator<<(std::ostream &os, yfs_client::dir_content &obj) {
     os << it->name << " " << it->inum << " ";
     ++it;
   }
-  // for (int i = 0; i < number_of_entries; ++i) {
-    // os << obj.entries.begin()->name << obj.entries.begin()->inum;
-    // obj.entries.pop_front();
-  // }
 
   return os;
 
@@ -149,14 +150,12 @@ std::ostream &operator<<(std::ostream &os, yfs_client::dir_content &obj) {
 yfs_client::status yfs_client::create(inum parent, const char *name, int is_dir, inum &ino)
 {
   std::string parent_dir_content_txt;
-  std::cout << "1\n";
   ec->get(parent, parent_dir_content_txt);
-  std::cout << "2\n";
+  
   std::istringstream ist(parent_dir_content_txt);
   dir_content parent_dir_content;
   ist >> parent_dir_content;
-  std::cout << "len" << parent_dir_content.entries.size() << std::endl;
-  std::cout << "3\n";
+  
   inum inum = generate_new_inum(is_dir);
   std::ostringstream ost;
 
@@ -167,21 +166,14 @@ yfs_client::status yfs_client::create(inum parent, const char *name, int is_dir,
     ost.str(std::string());
   }
   else {
-    std::cout << "4\n";
     ec->put(inum, std::string());
-    std::cout << "5\n";
   }
 
   dirent entry = { std::string(name), inum };
   parent_dir_content.entries.push_back(entry);
   
-  std::cout << ost.str() <<"a"<< std::endl;
   ost << parent_dir_content;
-  std::cout << "6\n";
-  // std::cout << ost.str()[:10] << std::endl;
   ec->put(parent, ost.str());
-  // ec->put(parent, "");
-  std::cout << "7\n";
 
   ino = inum;
   

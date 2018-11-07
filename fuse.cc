@@ -153,7 +153,6 @@ fuseserver_create(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mo
   std::cout << "void fuseserver_create\n";
   struct fuse_entry_param e;
   if(fuseserver_createhelper( parent, name, mode, &e ) == yfs_client::OK ) {
-    std::cout << "createhelper::OK\n";
     fuse_reply_create(req, &e, fi);
   } else {
     fuse_reply_err(req, ENOENT);
@@ -162,7 +161,6 @@ fuseserver_create(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mo
 
 void fuseserver_mknod( fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode, dev_t rdev ) {
   std::cout << "void fuseserver_mknod\n";
-  std::cout << "Hi!";
   struct fuse_entry_param e;
   if( fuseserver_createhelper( parent, name, mode, &e ) == yfs_client::OK ) {
     fuse_reply_entry(req, &e);
