@@ -125,8 +125,16 @@ yfs_client::status
 fuseserver_createhelper(fuse_ino_t parent, const char *name, mode_t mode, struct fuse_entry_param *e)
 {
   std::cout << "void fuseserver_createhelper\n";
-  // You fill this in
-  return yfs_client::NOENT;
+
+  int is_dir = S_IFDIR & mode;
+
+  if (yfs->create(parent, name, is_dir) == yfs_client::OK) {
+    // e->ino = 0;
+    // e->attr = NULL;
+  }
+  else {
+    return yfs_client::NOENT;
+  }
 }
 
 void

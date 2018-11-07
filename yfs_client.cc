@@ -8,6 +8,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <random>
 
 
 yfs_client::yfs_client(std::string extent_dst, std::string lock_dst)
@@ -95,18 +96,82 @@ yfs_client::getdir(inum inum, dirinfo &din)
 // ---------------------------------------
 
 yfs_client::inum
-generate_new_inum(bool inum)
+yfs_client::generate_new_inum(int is_dir)
 {
-  return inum; // ha ha TODO
+  // return inum; // ha ha TODO
+
+  inum inum = distribution(generator);
+
+  if (is_dir) {
+    inum = (inum & 0x0FFFFFFF);
+  }
+  else {
+    inum = (inum | 0x80000000); 
+  }
+
+  return inum;
+
 }
 
+std::istream &operator>>(std::istream &is, yfs_client::dir_content &obj) {
+  entries.clear();
+  int number_of_entries;
+  is >> number_of_entries;
 
-// We have to implement this thing
-yfs_client::status yfs_client::create(inum parent, const char *name)
+  std::string name;
+  unsigned long long inum;
+
+  for (int i = 0; i < number_of_entries; ++i) {
+    is >> name >> inum;
+    dirent entry = { name, inum };
+    entries.push_back(entry);
+  }
+
+  return is;
+}
+
+std::ostream &operator<<(std::ostream &os, yfs_client::dir_content &obj) {
+  int number_of_entries = entries.size();
+  os << number_of_entries;
+
+  for (int i = 0; i < number_of_entries; ++i) {
+    os << entries.head()->name << entries.head()->inum;
+    entries.pop_front();
+  }
+
+  return os;
+
+}
+
+yfs_client::status yfs_client::create(inum parent, const char *name, int is_dir)
 {
+  std::string parent_dir_content_txt;
+  ec->get(parent, parent_dir_content_txt);
 
-  std::cout << "Hello"; 
+  std::istringstream ist(parent_dir_content_txt);
+  dir_content parent_dir_content;
+  ist >> parent_dir_content;
 
+  inum inum = generate_new_inum(is_dir);
+  std::ostringstream ost;
+
+  if (is_dir) {
+    dir_content empty_dir_content;
+    ost << empty_dir_content;
+    ec->put(inum, ost.str());
+    ost.str(std::string());
+  }
+  else {
+    ec->put(inum, std::string());
+  }
+
+  dirent entry = { std::string(name), inum };
+  parent_dir_content.entries.push_back(entry);
+  
+  ost << parent_dir_content;
+
+  ec->put(parent, ost.str());
+  
   return OK;
 }
 

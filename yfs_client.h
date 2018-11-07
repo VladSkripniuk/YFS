@@ -5,6 +5,7 @@
 //#include "yfs_protocol.h"
 #include "extent_client.h"
 #include <vector>
+#include <list>
 
 
 class yfs_client {
@@ -30,10 +31,32 @@ public:
     std::string name;
     unsigned long long inum;
   };
+  
+  class dir_content
+  {
+  public:
+    // dir_content();
+    // ~dir_content();
+    std::istream &operator>>(std::istream &is, yfs_client::dir_content &obj);
+    std::ostream &operator<<(std::ostream &os, yfs_client::dir_content &obj);
+    std::list<dirent> entries;
+  private:
+    // inum id;
+  };
 
 private:
   static std::string filename(inum);
   static inum n2i(std::string);
+
+    /* Seed */
+  std::random_device rd;
+
+  /* Random number generator */
+  std::default_random_engine generator(rd());
+
+  /* Distribution on which to apply the generator */
+  std::uniform_int_distribution<long long unsigned> distribution(0,0xFFFFFFFFFFFFFFFF);
+
 public:
 
   yfs_client(std::string, std::string);
@@ -48,6 +71,6 @@ public:
   // TODO 
   status create(inum, const char *);
 
-    };
+};
 
 #endif 
