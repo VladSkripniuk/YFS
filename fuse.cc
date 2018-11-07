@@ -125,7 +125,6 @@ yfs_client::status
 fuseserver_createhelper(fuse_ino_t parent, const char *name, mode_t mode, struct fuse_entry_param *e)
 {
   std::cout << "void fuseserver_createhelper\n";
-
   int is_dir = S_IFDIR & mode;
 
   if (yfs->create(parent, name, is_dir) == yfs_client::OK) {
@@ -142,7 +141,7 @@ fuseserver_create(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mo
 {
   std::cout << "void fuseserver_create\n";
   struct fuse_entry_param e;
-  if( fuseserver_createhelper( parent, name, mode, &e ) == yfs_client::OK ) {
+  if(fuseserver_createhelper( parent, name, mode, &e ) == yfs_client::OK ) {
     fuse_reply_create(req, &e, fi);
   } else {
     fuse_reply_err(req, ENOENT);
