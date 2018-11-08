@@ -33,17 +33,15 @@ public:
     std::string name;
     unsigned long long inum;
   };
-  
+
+  // TODO: 
+  // Do we really need this? 
   class dir_content
   {
   public:
-    // dir_content();
-    // ~dir_content();
     friend std::istream &operator>>(std::istream &is, yfs_client::dir_content &obj);
     friend std::ostream &operator<<(std::ostream &os, yfs_client::dir_content &obj);
     std::list<dirent> entries;
-  private:
-    // inum id;
   };
 
 private:
@@ -75,7 +73,9 @@ public:
   // TODO 
   inum generate_new_inum(int);
   status create(inum, const char *, int, inum &);
-
+  status readdir(inum, dir_content &);
+  status lookup(inum, const char *, inum &);
+  
 };
 
 #endif 

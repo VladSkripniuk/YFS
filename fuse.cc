@@ -100,6 +100,7 @@ void
 fuseserver_read(fuse_req_t req, fuse_ino_t ino, size_t size,
 		off_t off, struct fuse_file_info *fi)
 {
+  
   // You fill this in
 #if 0
   fuse_reply_buf(req, buf, size);
@@ -130,26 +131,23 @@ fuseserver_createhelper(fuse_ino_t parent, const char *name, mode_t mode, struct
   yfs_client::inum ino;
   struct stat st;
 
-  if (yfs->create(parent, name, is_dir, ino) == yfs_client::OK) {
-    yfs_client::status ret = getattr(ino, st);
-  
-    if (ret != yfs_client::OK) {
-      return ret;
-    }
-  
-    e->ino = ino;
-    e->attr = st;
-
-    return yfs_client::OK;
-  }
-  else {
+  if (yfs->create(parent, name, is_dir, ino) != yfs_client::OK) {
     return yfs_client::NOENT;
   }
+  
+  yfs_client::status ret = getattr(ino, st);
+  if (ret != yfs_client::OK) {
+    return ret;
+  }
+  
+  e->ino = ino;
+  e->attr = st;
+  
+  return yfs_client::OK;
 }
 
 void
-fuseserver_create(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode, struct fuse_file_info *fi)
-{
+fuseserver_create(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode, struct fuse_file_info *fi) {
   std::cout << "void fuseserver_create\n";
   struct fuse_entry_param e;
   if(fuseserver_createhelper( parent, name, mode, &e ) == yfs_client::OK ) {
@@ -170,23 +168,31 @@ void fuseserver_mknod( fuse_req_t req, fuse_ino_t parent, const char *name, mode
 }
 
 void
-fuseserver_lookup(fuse_req_t req, fuse_ino_t parent, const char *name)
-{
+fuseserver_lookup(fuse_req_t req, fuse_ino_t parent, const char *name) {
+  std::cout << "fuseserver_lookup" << "\n";
+  
   struct fuse_entry_param e;
-  bool found = false;
 
   e.attr_timeout = 0.0;
   e.entry_timeout = 0.0;
 
-  // You fill this in:
-  // Look up the file named `name' in the directory referred to by
-  // `parent' in YFS. If the file was found, initialize e.ino and
-  // e.attr appropriately.
+  struct stat st;
+  yfs_client::inum ino = 0;
 
-  if (found)
-    fuse_reply_entry(req, &e);
-  else
+  if (yfs->lookup(parent, name, ino)!= yfs_client::OK) {
     fuse_reply_err(req, ENOENT);
+    return;
+  }
+
+  if (getattr(ino, st) != yfs_client::OK) {
+    fuse_reply_err(req, ENOENT);
+    return;
+  }
+
+  e.ino = ino;
+  e.attr = st;
+
+  fuse_reply_entry(req, &e);
 }
 
 
@@ -218,26 +224,32 @@ int reply_buf_limited(fuse_req_t req, const char *buf, size_t bufsize,
 }
 
 void
-fuseserver_readdir(fuse_req_t req, fuse_ino_t ino, size_t size,
-		   off_t off, struct fuse_file_info *fi)
+fuseserver_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fuse_file_info *fi)
 {
-  yfs_client::inum inum = ino; // req->in.h.nodeid;
+  std::cout << "fuseserver_readdir\n";
+  
+  if(!yfs->isdir(ino)){
+    fuse_reply_err(req, ENOTDIR);
+    return;
+  }
+  
   struct dirbuf b;
-  yfs_client::dirent e;
+  memset(&b, 0, sizeof(b));
 
-  printf("fuseserver_readdir\n");
+  // Create dir_content instance 
+  yfs_client::dir_content dir_content;
 
-  if(!yfs->isdir(inum)){
+  // Read info 
+  if (yfs->readdir(ino, dir_content) != yfs_client::OK) {
     fuse_reply_err(req, ENOTDIR);
     return;
   }
 
-  memset(&b, 0, sizeof(b));
-
-
-  // fill in the b data structure using dirbuf_add
-
-
+  // Fill in the b data structure using dirbuf_add
+  for (auto it = dir_content.entries.begin(); it != dir_content.entries.end(); ++it) {
+    dirbuf_add(&b, it->name.c_str(), it->inum);
+  }
+  
   reply_buf_limited(req, b.p, b.size, off, size);
   free(b.p);
 }
