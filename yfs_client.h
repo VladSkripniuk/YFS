@@ -5,11 +5,14 @@
 //#include "yfs_protocol.h"
 #include "extent_client.h"
 #include <vector>
+#include <list>
+#include <random>
+#include <unistd.h>
 
 
-  class yfs_client {
+class yfs_client {
   extent_client *ec;
- public:
+public:
 
   typedef unsigned long long inum;
   enum xxstatus { OK, RPCERR, NOENT, IOERR, FBIG };
@@ -31,10 +34,32 @@
     unsigned long long inum;
   };
 
- private:
+  // TODO: 
+  // Do we really need this? 
+  class dir_content
+  {
+  public:
+    friend std::istream &operator>>(std::istream &is, yfs_client::dir_content &obj);
+    friend std::ostream &operator<<(std::ostream &os, yfs_client::dir_content &obj);
+    std::list<dirent> entries;
+  };
+
+private:
   static std::string filename(inum);
   static inum n2i(std::string);
- public:
+
+    /* Seed */
+  std::random_device rd;
+
+    /* Random number generator */
+  std::default_random_engine generator;
+
+  /* Distribution on which to apply the generator */
+  std::uniform_int_distribution<long long unsigned> distribution;
+
+
+
+public:
 
   yfs_client(std::string, std::string);
 
@@ -44,6 +69,13 @@
 
   int getfile(inum, fileinfo &);
   int getdir(inum, dirinfo &);
+
+  // TODO 
+  inum generate_new_inum(int);
+  status create(inum, const char *, int, inum &);
+  status readdir(inum, dir_content &);
+  status lookup(inum, const char *, inum &);
+  
 };
 
 #endif 

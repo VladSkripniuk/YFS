@@ -10,10 +10,8 @@
 #include <fcntl.h>
 
 
-yfs_client::yfs_client(std::string extent_dst, std::string lock_dst)
-{
+yfs_client::yfs_client(std::string extent_dst, std::string lock_dst) : generator(rd()), distribution(0,0xFFFFFFFFFFFFFFFF) {
   ec = new extent_client(extent_dst);
-
 }
 
 yfs_client::inum
@@ -91,5 +89,131 @@ yfs_client::getdir(inum inum, dirinfo &din)
   return r;
 }
 
+
+// ---------------------------------------
+
+yfs_client::inum yfs_client::generate_new_inum(int is_dir) {
+  // return inum; // ha ha TODO
+  // TODO: generate inum not randomly
+
+  inum inum = distribution(generator);
+
+  if (is_dir) {
+    inum = (inum & 0x0FFFFFFF);
+  }
+  else {
+    inum = (inum | 0x80000000); 
+  }
+
+  return inum;
+
+}
+
+std::istream &operator>>(std::istream &is, yfs_client::dir_content &obj) {
+  obj.entries.clear();
+  int number_of_entries;
+  if (is.rdbuf()->in_avail() == 0) {
+    number_of_entries = 0;
+  }
+  else {
+    is >> number_of_entries;
+  }
+
+  std::string name;
+  unsigned long long inum;
+
+  for (int i = 0; i < number_of_entries; ++i) {
+    is >> name >> inum;
+    yfs_client::dirent entry = { name, inum };
+    obj.entries.push_back(entry);
+  }
+
+  return is;
+}
+
+std::ostream &operator<<(std::ostream &os, yfs_client::dir_content &obj) {
+  int number_of_entries = obj.entries.size();
+  os << number_of_entries << " ";
+
+  auto it = obj.entries.begin();
+  while (it != obj.entries.end()) {
+    os << it->name << " " << it->inum << " ";
+    ++it;
+  }
+
+  return os;
+}
+
+yfs_client::status yfs_client::create(inum parent, const char *name, int is_dir, inum &ino) {
+
+  // Get info 
+  std::string parent_dir_content_txt;
+  if(ec->get(parent, parent_dir_content_txt) != OK) {
+    std::cout << "yfs_client::create -> error [ec->get(..) != OK]\n";
+  }
+
+  // Parse info 
+  dir_content parent_dir_content;
+  std::istringstream ist(parent_dir_content_txt);
+  ist >> parent_dir_content;
+  
+  inum inum = generate_new_inum(is_dir);
+  std::ostringstream ost;
+
+  if (is_dir) {
+    dir_content empty_dir_content;
+    ost << empty_dir_content;
+    ec->put(inum, ost.str());
+    ost.str(std::string());
+  }
+  else {
+    ec->put(inum, std::string());
+  }
+
+  dirent entry = { std::string(name), inum };
+  parent_dir_content.entries.push_back(entry);
+  
+  ost << parent_dir_content;
+  ec->put(parent, ost.str());
+  
+  ino = inum;
+  
+  return OK;
+}
+
+yfs_client::status yfs_client::readdir(inum parent_dir, dir_content &parent_dir_content) {
+  // Get info 
+  std::string parent_dir_content_txt;
+  if(ec->get(parent_dir, parent_dir_content_txt) != OK) {
+    std::cout << "yfs_client::readdir -> error: [ec->get(..) != OK]\n";
+  }
+  
+  // Parse info 
+  std::istringstream ist(parent_dir_content_txt);
+  ist >> parent_dir_content;
+  
+  return OK;
+}
+
+
+yfs_client::status yfs_client::lookup(inum parent_dir, const char *name, inum &ino) {
+
+  // Get dir content
+  dir_content parent_dir_content;
+  if (readdir(parent_dir, parent_dir_content) != OK) {
+    std::cout << "yfs_client::readdir -> error: [readdir(..) != OK]\n";
+  }
+
+  // Find entry
+  for (auto it = parent_dir_content.entries.begin(); it != parent_dir_content.entries.end(); ++it) {
+    if (it->name == name) {
+      ino = it->inum;
+      return OK;
+    }
+  }
+
+  // TODO: it shouldn't be "OK"
+  return OK;
+}
 
 

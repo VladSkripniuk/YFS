@@ -7,34 +7,74 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <ctime>
 
 extent_server::extent_server() {}
 
 
 int extent_server::put(extent_protocol::extentid_t id, std::string buf, int &)
 {
-  return extent_protocol::IOERR;
+  auto it = buffers.find(id);
+  if (it == buffers.end()) {
+    attr_buf new_buffer;
+    buffers[id] = new_buffer;
+
+    it = buffers.find(id);
+  }
+
+  it->second.buf = buf;
+  it->second.attr.size = buf.length();
+
+  time_t t = time(NULL);
+
+  it->second.attr.ctime = t;
+  it->second.attr.mtime = t;
+
+  return extent_protocol::OK;
+
+  // return extent_protocol::IOERR;
 }
 
 int extent_server::get(extent_protocol::extentid_t id, std::string &buf)
 {
-  return extent_protocol::IOERR;
+  auto it = buffers.find(id);
+  if (it == buffers.end()) {
+    return extent_protocol::NOENT;
+  }
+
+  buf = it->second.buf;
+
+  time_t t = time(NULL);
+
+  it->second.attr.atime = t;
+
+  return extent_protocol::OK;
+
+  // return extent_protocol::IOERR;
 }
 
 int extent_server::getattr(extent_protocol::extentid_t id, extent_protocol::attr &a)
 {
-  // You replace this with a real implementation. We send a phony response
-  // for now because it's difficult to get FUSE to do anything (including
-  // unmount) if getattr fails.
-  a.size = 0;
-  a.atime = 0;
-  a.mtime = 0;
-  a.ctime = 0;
+  auto it = buffers.find(id);
+  if (it == buffers.end()) {
+    return extent_protocol::NOENT;
+  }
+
+  a = it->second.attr;
   return extent_protocol::OK;
 }
 
 int extent_server::remove(extent_protocol::extentid_t id, int &)
 {
-  return extent_protocol::IOERR;
+  auto it = buffers.find(id);
+  if (it == buffers.end()) {
+    return extent_protocol::NOENT;
+  }
+
+  buffers.erase(it);
+
+  return extent_protocol::OK;
+
+  // return extent_protocol::IOERR;
 }
 
