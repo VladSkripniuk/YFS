@@ -217,3 +217,56 @@ yfs_client::status yfs_client::lookup(inum parent_dir, const char *name, inum &i
 }
 
 
+yfs_client::status yfs_client::read(inum ino, size_t *size, off_t off, char **buf) {
+  std::string file_content;
+  if(ec->get(ino, file_content) != OK) {
+    std::cout << "yfs_client::create -> error [ec->get(..) != OK]\n";
+  }
+
+  if (off >= file_content.length()) {
+    *size = 0;
+    *buf = NULL;
+    return OK;
+  }
+
+  if (off + *size > file_content.length()) {
+    *size = file_content.length() - off;
+  }
+
+  *buf = (char *) malloc(*size);
+
+  memcpy(*buf, file_content.data()+off, *size);
+
+  return OK;
+}
+
+yfs_client::status yfs_client::write(inum ino, size_t size, off_t off, const char *buf) {
+  std::string file_content;
+  if(ec->get(ino, file_content) != OK) {
+    std::cout << "yfs_client::create -> error [ec->get(..) != OK]\n";
+  }
+
+  size_t old_size = file_content.length();
+  if (old_size < off + size) {
+    file_content.resize(off+size, '\0');
+  }
+
+  file_content.replace(off, size, buf, size);
+
+  ec->put(ino, file_content);
+
+  return OK;
+}  
+
+yfs_client::status yfs_client::set_size(inum ino, size_t size) {
+  std::string file_content;
+  if(ec->get(ino, file_content) != OK) {
+    std::cout << "yfs_client::create -> error [ec->get(..) != OK]\n";
+  }
+
+  file_content.resize(size, '\0');
+
+  ec->put(ino, file_content);
+
+  return OK;
+}

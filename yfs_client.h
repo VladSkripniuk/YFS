@@ -75,7 +75,11 @@ public:
   status create(inum, const char *, int, inum &);
   status readdir(inum, dir_content &);
   status lookup(inum, const char *, inum &);
-  
+
+  status read(inum, size_t*, off_t, char**);
+  status write(inum, size_t, off_t, const char*);
+  status set_size(inum, size_t);
+
 };
 
 #endif 
