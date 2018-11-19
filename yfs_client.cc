@@ -13,7 +13,7 @@
 yfs_client::yfs_client(std::string extent_dst, std::string lock_dst) : generator(rd()), distribution(0,0xFFFFFFFFFFFFFFFF) {
   ec = new extent_client(extent_dst);
 
-  ec->put(1,"");
+  lc = new lock_client(lock_dst);
 }
 
 yfs_client::inum
@@ -50,6 +50,10 @@ yfs_client::isdir(inum inum)
 int
 yfs_client::getfile(inum inum, fileinfo &fin)
 {
+  std::cout << "yfs_client::getfile " << std::endl;
+
+  ScopedRemoteLock scoped_lock(lc, inum);
+
   int r = OK;
 
 
@@ -74,6 +78,10 @@ yfs_client::getfile(inum inum, fileinfo &fin)
 int
 yfs_client::getdir(inum inum, dirinfo &din)
 {
+  std::cout << "yfs_client::getdir " << std::endl;
+
+  ScopedRemoteLock scoped_lock(lc, inum);
+
   int r = OK;
 
 
@@ -147,8 +155,10 @@ std::ostream &operator<<(std::ostream &os, yfs_client::dir_content &obj) {
 }
 
 yfs_client::status yfs_client::create(inum parent, const char *name, int is_dir, inum &ino) {
+  
+  std::cout << "yfs_client::create " << std::endl;
 
-  std::cout << "yfs_client::create " << is_dir << std::endl;
+  ScopedRemoteLock scoped_lock(lc, parent);
 
   // Get info 
   std::string parent_dir_content_txt;
@@ -160,6 +170,14 @@ yfs_client::status yfs_client::create(inum parent, const char *name, int is_dir,
   dir_content parent_dir_content;
   std::istringstream ist(parent_dir_content_txt);
   ist >> parent_dir_content;
+
+  // Remove old file with the same name
+  for (auto it=parent_dir_content.entries.begin(); it!=parent_dir_content.entries.end(); it++) {
+    if (it->name.compare(name) == 0) {
+      parent_dir_content.entries.erase(it);
+      break;
+    }
+  }
   
   inum inum = generate_new_inum(is_dir);
   std::ostringstream ost;
@@ -186,6 +204,11 @@ yfs_client::status yfs_client::create(inum parent, const char *name, int is_dir,
 }
 
 yfs_client::status yfs_client::readdir(inum parent_dir, dir_content &parent_dir_content) {
+
+  std::cout << "yfs_client::readdir" << std::endl;
+
+  ScopedRemoteLock scoped_lock(lc, parent_dir);
+
   // Get info 
   std::string parent_dir_content_txt;
   if(ec->get(parent_dir, parent_dir_content_txt) != OK) {
@@ -202,11 +225,23 @@ yfs_client::status yfs_client::readdir(inum parent_dir, dir_content &parent_dir_
 
 yfs_client::status yfs_client::lookup(inum parent_dir, const char *name, inum &ino) {
 
+  std::cout << "yfs_client::lookup" << std::endl;
+
+  ScopedRemoteLock scoped_lock(lc, parent_dir);
+
   // Get dir content
   dir_content parent_dir_content;
-  if (readdir(parent_dir, parent_dir_content) != OK) {
-    std::cout << "yfs_client::readdir -> error: [readdir(..) != OK]\n";
-  }
+  // if (readdir(parent_dir, parent_dir_content) != OK) {
+    // std::cout << "yfs_client::readdir -> error: [readdir(..) != OK]\n";
+  // }
+
+  // Get info 
+  std::string parent_dir_content_txt;
+  ec->get(parent_dir, parent_dir_content_txt);
+  
+  // Parse info 
+  std::istringstream ist(parent_dir_content_txt);
+  ist >> parent_dir_content;
 
   // Find entry
   for (auto it = parent_dir_content.entries.begin(); it != parent_dir_content.entries.end(); ++it) {
@@ -222,6 +257,11 @@ yfs_client::status yfs_client::lookup(inum parent_dir, const char *name, inum &i
 
 
 yfs_client::status yfs_client::read(inum ino, size_t *size, off_t off, char **buf) {
+
+  std::cout << "yfs_client::read" << std::endl;
+
+  ScopedRemoteLock scoped_lock(lc, ino);
+
   std::string file_content;
   if(ec->get(ino, file_content) != OK) {
     std::cout << "yfs_client::create -> error [ec->get(..) != OK]\n";
@@ -245,6 +285,11 @@ yfs_client::status yfs_client::read(inum ino, size_t *size, off_t off, char **bu
 }
 
 yfs_client::status yfs_client::write(inum ino, size_t size, off_t off, const char *buf) {
+
+  std::cout << "yfs_client::write" << std::endl;
+
+  ScopedRemoteLock scoped_lock(lc, ino);
+
   std::string file_content;
   if(ec->get(ino, file_content) != OK) {
     std::cout << "yfs_client::create -> error [ec->get(..) != OK]\n";
@@ -263,6 +308,11 @@ yfs_client::status yfs_client::write(inum ino, size_t size, off_t off, const cha
 }  
 
 yfs_client::status yfs_client::set_size(inum ino, size_t size) {
+
+  std::cout << "yfs_client::set_size" << std::endl;
+
+  ScopedRemoteLock scoped_lock(lc, ino);
+
   std::string file_content;
   if(ec->get(ino, file_content) != OK) {
     std::cout << "yfs_client::create -> error [ec->get(..) != OK]\n";
@@ -275,12 +325,26 @@ yfs_client::status yfs_client::set_size(inum ino, size_t size) {
   return OK;
 }
 
-yfs_client::status yfs_client::unlink(inum parent, const char *name_cstr) {
+yfs_client::status yfs_client::unlink(inum parent_dir, const char *name_cstr) {
+
+  std::cout << "yfs_client::unlink" << std::endl;
+
+  ScopedRemoteLock scoped_lock(lc, parent_dir);
+
  // Get dir content
   dir_content parent_dir_content;
-  if (readdir(parent, parent_dir_content) != OK) {
-    std::cout << "yfs_client::readdir -> error: [readdir(..) != OK]\n";
-  }
+  // if (readdir(parent, parent_dir_content) != OK) {
+    // std::cout << "yfs_client::readdir -> error: [readdir(..) != OK]\n";
+  // }
+
+  // Get info 
+  std::string parent_dir_content_txt;
+  ec->get(parent_dir, parent_dir_content_txt);
+  
+  // Parse info 
+  std::istringstream ist(parent_dir_content_txt);
+  ist >> parent_dir_content;
+
 
   std::string name(name_cstr);
 
@@ -295,7 +359,7 @@ yfs_client::status yfs_client::unlink(inum parent, const char *name_cstr) {
       parent_dir_content.entries.erase(it);
       ost << parent_dir_content;
 
-      ec->put(parent, ost.str());
+      ec->put(parent_dir, ost.str());
 
       break;
     }

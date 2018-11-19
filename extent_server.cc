@@ -9,7 +9,10 @@
 #include <fcntl.h>
 #include <ctime>
 
-extent_server::extent_server() {}
+extent_server::extent_server() {
+  int t;
+  this->put(1, std::string(""), t);
+}
 
 
 int extent_server::put(extent_protocol::extentid_t id, std::string buf, int &)

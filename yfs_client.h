@@ -4,14 +4,17 @@
 #include <string>
 //#include "yfs_protocol.h"
 #include "extent_client.h"
+#include "lock_client.h"
 #include <vector>
 #include <list>
 #include <random>
 #include <unistd.h>
 
 
+
 class yfs_client {
   extent_client *ec;
+  lock_client *lc;
 public:
 
   typedef unsigned long long inum;
@@ -42,6 +45,21 @@ public:
     friend std::istream &operator>>(std::istream &is, yfs_client::dir_content &obj);
     friend std::ostream &operator<<(std::ostream &os, yfs_client::dir_content &obj);
     std::list<dirent> entries;
+  };
+
+  class ScopedRemoteLock {
+  public:
+    ScopedRemoteLock(lock_client *lc, inum lock_id): lc_(lc), lock_id_(lock_id) {
+      std::cout << "acquire " << lock_id_ << std::endl;
+      lc_->acquire(lock_id_);
+    }
+    ~ScopedRemoteLock() {
+      std::cout << "release " << lock_id_ << std::endl;
+      lc_->release(lock_id_);
+    }
+  private:
+    lock_client *lc_;
+    inum lock_id_;
   };
 
 private:
