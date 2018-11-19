@@ -80,6 +80,8 @@ public:
   status write(inum, size_t, off_t, const char*);
   status set_size(inum, size_t);
 
+  status unlink(inum, const char *);
+
 };
 
 #endif 

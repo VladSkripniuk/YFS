@@ -297,10 +297,17 @@ fuseserver_mkdir(fuse_req_t req, fuse_ino_t parent, const char *name,
 		 mode_t mode)
 {
 std::cout << "void fuseserver_mkdir\n";
-#if 0
+
+// S_IFDIR is not set in mode, that's weird
+mode = S_IFDIR | mode;
+
+#if 1
   struct fuse_entry_param e;
-  // You fill this in
-  fuse_reply_entry(req, &e);
+  if (fuseserver_createhelper( parent, name, mode, &e ) == yfs_client::OK ) {
+    fuse_reply_entry(req, &e);
+  } else {
+    fuse_reply_err(req, ENOSYS);
+  }
 #else
   fuse_reply_err(req, ENOSYS);
 #endif
@@ -313,7 +320,14 @@ fuseserver_unlink(fuse_req_t req, fuse_ino_t parent, const char *name)
   // You fill this in
   // Success:	fuse_reply_err(req, 0);
   // Not found:	fuse_reply_err(req, ENOENT);
-  fuse_reply_err(req, ENOSYS);
+  yfs_client::status ret = yfs->unlink(parent, name);
+  if (ret == yfs_client::OK) {
+    fuse_reply_err(req, 0);  
+  }
+  else if (ret == yfs_client::NOENT) {
+    fuse_reply_err(req, ENOENT);   
+  }
+  // fuse_reply_err(req, ENOSYS);
 }
 
 void

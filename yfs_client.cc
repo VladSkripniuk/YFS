@@ -12,6 +12,8 @@
 
 yfs_client::yfs_client(std::string extent_dst, std::string lock_dst) : generator(rd()), distribution(0,0xFFFFFFFFFFFFFFFF) {
   ec = new extent_client(extent_dst);
+
+  ec->put(1,"");
 }
 
 yfs_client::inum
@@ -146,6 +148,8 @@ std::ostream &operator<<(std::ostream &os, yfs_client::dir_content &obj) {
 
 yfs_client::status yfs_client::create(inum parent, const char *name, int is_dir, inum &ino) {
 
+  std::cout << "yfs_client::create " << is_dir << std::endl;
+
   // Get info 
   std::string parent_dir_content_txt;
   if(ec->get(parent, parent_dir_content_txt) != OK) {
@@ -267,6 +271,39 @@ yfs_client::status yfs_client::set_size(inum ino, size_t size) {
   file_content.resize(size, '\0');
 
   ec->put(ino, file_content);
+
+  return OK;
+}
+
+yfs_client::status yfs_client::unlink(inum parent, const char *name_cstr) {
+ // Get dir content
+  dir_content parent_dir_content;
+  if (readdir(parent, parent_dir_content) != OK) {
+    std::cout << "yfs_client::readdir -> error: [readdir(..) != OK]\n";
+  }
+
+  std::string name(name_cstr);
+
+  // Find entry
+  auto it = parent_dir_content.entries.begin();
+
+  for (it = parent_dir_content.entries.begin(); it != parent_dir_content.entries.end(); ++it) {
+    if (it->name == name) {
+      ec->remove(it->inum);
+
+      std::ostringstream ost;
+      parent_dir_content.entries.erase(it);
+      ost << parent_dir_content;
+
+      ec->put(parent, ost.str());
+
+      break;
+    }
+  }
+
+  if (it == parent_dir_content.entries.end()) {
+    return NOENT;
+  }
 
   return OK;
 }
