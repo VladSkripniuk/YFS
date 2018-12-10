@@ -8,7 +8,7 @@
 
 
 struct lock_client_id_and_seqnum {
-	std::string id;
+	std::string client_id;
 	lock_protocol::seqnum_t seqnum;
 };
 
@@ -38,7 +38,8 @@ public:
 		T r;
 		while(1) {
 	    if (!queue.empty()) {
-	      r = queue.pop_front()
+        r = *queue.begin();
+	      queue.pop_front();
 	      break;
 	    }
 	    pthread_cond_wait(&cv, &m);
@@ -57,7 +58,7 @@ class lock_server_cache {
   lock_protocol::status stat(int clt, lock_protocol::lockid_t lid, int &);
   lock_protocol::status acquire(int clt, std::string client_socket, lock_protocol::seqnum_t seqnum, lock_protocol::lockid_t lid, int &r);
   // lock_protocol::status acquire(int clt, lock_protocol::lockid_t lid, int &);
-  lock_protocol::status release(int clt, lock_protocol::lockid_t lid, int &);
+  lock_protocol::status release(int clt, std::string client_socket, lock_protocol::seqnum_t seqnum, lock_protocol::lockid_t lid, int &r);
 
 protected:
   int nacquire = 0;
@@ -67,6 +68,7 @@ protected:
     static const int FREE = 0;
   	static const int LOCKED = 1;
 
+  public:
     int lock_state;
     // pthread_cond_t cond_var;
     std::string owner; // lock_client_cache::id
@@ -93,10 +95,30 @@ protected:
 
     void add_to_waiting_list(std::string client_id, lock_protocol::seqnum_t seqnum_of_request) {
     	lock_client_id_and_seqnum t;
-    	t.id = client_id;
+    	t.client_id = client_id;
     	t.seqnum = seqnum_of_request;
     	waiting_list.push_back(t);
     }
+
+    void get_from_waiting_list(std::string &client_id, lock_protocol::seqnum_t &seqnum_of_request) {
+      lock_client_id_and_seqnum t;
+      t = *waiting_list.begin();
+      waiting_list.pop_front();
+      client_id = t.client_id;
+      seqnum_of_request = t.seqnum;
+    }
+
+    bool waiting_list_is_empty() {
+      return waiting_list.empty();
+    }
+
+    std::list<lock_client_id_and_seqnum> get_waiting_list_and_clear_it() {
+      std::list<lock_client_id_and_seqnum> t;
+      t = waiting_list;
+      waiting_list.clear();
+      return t;
+    }
+
   };
 
   struct lock_client_info {
@@ -113,12 +135,14 @@ protected:
         printf("lock_client: call bind\n");
       }
   	}
+    lock_client_info() {
+      nacquire = 0;
+    }
 
 
   };
     
 protected:
-  int nacquire;
   std::map<lock_protocol::lockid_t, lock> locks;
   std::map<std::string, lock_client_info> lock_clients;
   pthread_mutex_t release_acquire_mutex; // this mutex protects locks, lock_clients and most importantly, nacquire

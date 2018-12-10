@@ -25,8 +25,7 @@ retrythread(void *x)
 
 lock_server_cache::lock_server_cache()
 {
-  pthread_mutex_init(&locks_map_mutex, NULL);
-  pthread_mutex_init(&lock_clients_map_mutex, NULL);
+  pthread_mutex_init(&release_acquire_mutex, NULL);
  
   pthread_t th;
   int r = pthread_create(&th, NULL, &revokethread, (void *) this);
@@ -44,9 +43,24 @@ lock_server_cache::revoker()
   // same lock
   lock_protocol::lockid_t lid;
   while (1) {
+    std::cout << "revoker1\n";
     lid = revoker_queue.pop_front();
+    std::cout << "revoker2\n";
+    // send revoke RPC
+    pthread_mutex_lock(&release_acquire_mutex);
+    std::cout << "revoker3\n";
+    rpcc *cl;
+    std::cout << locks[lid].owner << std::endl;
+    cl = lock_clients[locks[lid].owner].cl;
+    rlock_protocol::seqnum_t seqnum;
+    seqnum = locks[lid].seqnum;
+  
+    pthread_mutex_unlock(&release_acquire_mutex);
 
-    // TODO: send revoke RPC
+    int r;
+    int ret = cl->call(rlock_protocol::revoke, seqnum, lid, r);
+    assert (ret == rlock_protocol::OK);
+
   }
 
 }
@@ -64,6 +78,36 @@ lock_server_cache::retryer()
     lid = retrier_queue.pop_front();
 
     // TODO: send retry RPC
+    pthread_mutex_lock(&release_acquire_mutex);
+  
+    std::list<lock_client_id_and_seqnum> waiting_list;
+    waiting_list = locks[lid].get_waiting_list_and_clear_it();
+
+    pthread_mutex_unlock(&release_acquire_mutex);
+    
+    std::string client_id;
+    rlock_protocol::seqnum_t seqnum;
+
+    rpcc *cl;
+
+    while (!waiting_list.empty()) {
+
+      lock_client_id_and_seqnum t = *waiting_list.begin();
+      waiting_list.pop_front();
+
+      pthread_mutex_lock(&release_acquire_mutex);
+      cl = lock_clients[t.client_id].cl;
+      pthread_mutex_unlock(&release_acquire_mutex);
+
+      int r;
+      int ret = cl->call(rlock_protocol::retry, seqnum, lid, r);
+      assert (ret == rlock_protocol::OK);
+
+    }
+    
+    pthread_mutex_unlock(&release_acquire_mutex);
+
+
   }
 
 }
@@ -86,6 +130,7 @@ lock_server_cache::acquire(int clt, std::string client_socket, lock_protocol::se
   std::map<lock_protocol::lockid_t, lock>::iterator it;
   it = locks.find(lid);
 
+  // add new lock if it didn't exist before
   if (it == locks.end()) {
     lock new_lock;
     locks[lid] = new_lock;
@@ -96,6 +141,7 @@ lock_server_cache::acquire(int clt, std::string client_socket, lock_protocol::se
     std::map<std::string, lock_client_info>::iterator it;
     it = lock_clients.find(client_socket);
 
+    // add new lock_client if it didn't exist before
     if (it == lock_clients.end()) {
       lock_client_info new_lock_client_info(client_socket);
 
@@ -130,16 +176,16 @@ lock_server_cache::release(int clt, std::string client_socket, lock_protocol::se
   std::map<lock_protocol::lockid_t,lock>::iterator it;
   it = locks.find(lid);
 
-  if ((it != locks.end()) && (it->second.lock_state == LOCKED)) {
+  if ((it != locks.end()) && (!it->second.is_free())) {
     nacquire--;
 
-    std::map<std::string,lock_client_info>::iterator it;
-    it = lock_clients.find(client_socket);
-    if (it != lock_clients.end()) {
-      it->nacquire -= 1;
+    std::map<std::string,lock_client_info>::iterator it1;
+    it1 = lock_clients.find(client_socket);
+    if (it1 != lock_clients.end()) {
+      it1->second.nacquire -= 1;
     }
 
-    it->second.lock_state = FREE;
+    it->second.release_lock();
     
     retrier_queue.push_back(lid);
   }
