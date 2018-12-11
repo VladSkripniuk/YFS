@@ -57,6 +57,7 @@ class lock_server_cache {
   void retryer();
   lock_protocol::status stat(int clt, lock_protocol::lockid_t lid, int &);
   lock_protocol::status acquire(int clt, std::string client_socket, lock_protocol::seqnum_t seqnum, lock_protocol::lockid_t lid, int &r);
+  // lock_protocol::status acquire(int clt, std::string client_socket, int &r);
   // lock_protocol::status acquire(int clt, lock_protocol::lockid_t lid, int &);
   lock_protocol::status release(int clt, std::string client_socket, lock_protocol::seqnum_t seqnum, lock_protocol::lockid_t lid, int &r);
 
@@ -135,9 +136,9 @@ protected:
         printf("lock_client: call bind\n");
       }
   	}
-    lock_client_info() {
-      nacquire = 0;
-    }
+    // lock_client_info() {
+    //   nacquire = 0;
+    // }
 
 
   };

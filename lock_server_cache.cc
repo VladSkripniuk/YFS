@@ -43,15 +43,19 @@ lock_server_cache::revoker()
   // same lock
   lock_protocol::lockid_t lid;
   while (1) {
-    std::cout << "revoker1\n";
+    // std::cout << "revoker1\n";
     lid = revoker_queue.pop_front();
-    std::cout << "revoker2\n";
+    // std::cout << "revoker2\n";
     // send revoke RPC
     pthread_mutex_lock(&release_acquire_mutex);
-    std::cout << "revoker3\n";
+    // std::cout << "revoker3\n";
     rpcc *cl;
     std::cout << locks[lid].owner << std::endl;
-    cl = lock_clients[locks[lid].owner].cl;
+
+    auto it = lock_clients.find(locks[lid].owner);
+    assert (it != lock_clients.end());
+    cl = it->second.cl;
+    
     rlock_protocol::seqnum_t seqnum;
     seqnum = locks[lid].seqnum;
   
@@ -77,12 +81,14 @@ lock_server_cache::retryer()
   while (1) {
     lid = retrier_queue.pop_front();
 
+    std::cout << "lock_server_cache::retryer: " << lid << std::endl;
+
     // TODO: send retry RPC
     pthread_mutex_lock(&release_acquire_mutex);
   
     std::list<lock_client_id_and_seqnum> waiting_list;
     waiting_list = locks[lid].get_waiting_list_and_clear_it();
-
+    // std::cout << "waiting list copied\n";
     pthread_mutex_unlock(&release_acquire_mutex);
     
     std::string client_id;
@@ -96,9 +102,10 @@ lock_server_cache::retryer()
       waiting_list.pop_front();
 
       pthread_mutex_lock(&release_acquire_mutex);
-      cl = lock_clients[t.client_id].cl;
+      auto it = lock_clients.find(t.client_id);
+      assert (it != lock_clients.end());
+      cl = it->second.cl;
       pthread_mutex_unlock(&release_acquire_mutex);
-
       int r;
       int ret = cl->call(rlock_protocol::retry, seqnum, lid, r);
       assert (ret == rlock_protocol::OK);
@@ -123,7 +130,7 @@ lock_server_cache::stat(int clt, lock_protocol::lockid_t lid, int &r)
 
 lock_protocol::status
 lock_server_cache::acquire(int clt, std::string client_socket, lock_protocol::seqnum_t seqnum, lock_protocol::lockid_t lid, int &r) {
-  
+
   std::cout << "acquire request (clt " << client_socket << ", seqnum " << seqnum << ", lock id: " << lid << ")\n";
   pthread_mutex_lock(&release_acquire_mutex);
 
@@ -137,33 +144,39 @@ lock_server_cache::acquire(int clt, std::string client_socket, lock_protocol::se
     it = locks.find(lid);
   }
 
+  // add new lock_client if it didn't exist before
+  if (lock_clients.find(client_socket) == lock_clients.end()) {
+    lock_client_info new_lock_client_info(client_socket);
+    // std::cout << "acquire, inserted: " << client_socket << std::endl;
+    // lock_clients[client_socket] = new_lock_client_info;
+    lock_clients.insert(std::pair<std::string, lock_client_info>(client_socket, new_lock_client_info));
+  }
+
+
   if (it->second.is_free()) {
-    std::map<std::string, lock_client_info>::iterator it;
-    it = lock_clients.find(client_socket);
-
-    // add new lock_client if it didn't exist before
-    if (it == lock_clients.end()) {
-      lock_client_info new_lock_client_info(client_socket);
-
-      lock_clients[client_socket] = new_lock_client_info;
-      it = lock_clients.find(client_socket);
-    }
+    auto it = lock_clients.find(client_socket);
 
     it->second.nacquire += 1;
     locks[lid].grant_lock(client_socket, lid);
+
+    r = lock_protocol::OK;
+    std::cout << "acquire request successful: " << client_socket << " " << lid << std::endl;
     
   }
   else {
     locks[lid].add_to_waiting_list(client_socket, lid);
 
     revoker_queue.push_back(lid);
+    std::cout << "acquire request retry: " << client_socket << " " << lid << std::endl;
+
+    r = lock_protocol::RETRY;
 
   }
   
-  std::cout << "acquire done (clt " << clt << ", lock id: " << lid << ")\n";
+  // std::cout << "acquire done (clt " << clt << ", lock id: " << lid << ")\n";
   pthread_mutex_unlock(&release_acquire_mutex);
 
-  return lock_protocol::OK;
+  return r;
 }
 
 
@@ -186,6 +199,7 @@ lock_server_cache::release(int clt, std::string client_socket, lock_protocol::se
     }
 
     it->second.release_lock();
+    // std::cout << "lock_server_cache::release: pushed to retrier\n";
     
     retrier_queue.push_back(lid);
   }
