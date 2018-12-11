@@ -43,14 +43,14 @@ lock_server_cache::revoker()
   // same lock
   lock_protocol::lockid_t lid;
   while (1) {
-    // std::cout << "revoker1\n";
+    std::cout << "revoker1\n";
     lid = revoker_queue.pop_front();
-    // std::cout << "revoker2\n";
+    std::cout << "revoker2\n";
     // send revoke RPC
     pthread_mutex_lock(&release_acquire_mutex);
     // std::cout << "revoker3\n";
     rpcc *cl;
-    std::cout << locks[lid].owner << std::endl;
+    std::cout << "revoke: " << locks[lid].owner << " " << lid << std::endl;
 
     auto it = lock_clients.find(locks[lid].owner);
     assert (it != lock_clients.end());
@@ -88,6 +88,11 @@ lock_server_cache::retryer()
   
     std::list<lock_client_id_and_seqnum> waiting_list;
     waiting_list = locks[lid].get_waiting_list_and_clear_it();
+
+    std::cout << "waiting list\n";
+    for (auto it = waiting_list.begin(); it != waiting_list.end(); it++) {
+      std::cout << "\t" << it->client_id << std::endl;
+    }
     // std::cout << "waiting list copied\n";
     pthread_mutex_unlock(&release_acquire_mutex);
     
@@ -108,6 +113,10 @@ lock_server_cache::retryer()
       pthread_mutex_unlock(&release_acquire_mutex);
       int r;
       int ret = cl->call(rlock_protocol::retry, seqnum, lid, r);
+
+      std::cout << "retrier call " << ret <<" " <<r<<std::endl;
+
+      std::cout << "retrier: retry sent to " << t.client_id << " " << lid << std::endl;
       assert (ret == rlock_protocol::OK);
 
     }
@@ -161,6 +170,13 @@ lock_server_cache::acquire(int clt, std::string client_socket, lock_protocol::se
 
     r = lock_protocol::OK;
     std::cout << "acquire request successful: " << client_socket << " " << lid << std::endl;
+
+    /// in case someone else is also waiting on this lock right now, ask client to return this lock
+    /// that may cause revoke coming to client before acquire lock_protocol::OK
+    /// actually not, because we hold release_acquire_mutex
+    if (!locks[lid].waiting_list.empty()) {
+      revoker_queue.push_back(lid);
+    }
     
   }
   else {
@@ -183,7 +199,7 @@ lock_server_cache::acquire(int clt, std::string client_socket, lock_protocol::se
 lock_protocol::status
 lock_server_cache::release(int clt, std::string client_socket, lock_protocol::seqnum_t seqnum, lock_protocol::lockid_t lid, int &r) {
   
-  std::cout << "release request (clt " << clt << ", lock id: " << lid << ")\n";
+  std::cout << "release request (clt " << client_socket << ", lock id: " << lid << ")\n";
   pthread_mutex_lock(&release_acquire_mutex);
 
   std::map<lock_protocol::lockid_t,lock>::iterator it;

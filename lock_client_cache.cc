@@ -53,9 +53,9 @@ lock_client_cache::releaser()
 
   lock_protocol::lockid_t lid;
   while (1) {
-    std::cout << "lock_client::releaser 1\n";
+    // std::cout << "lock_client::releaser 1\n";
     lid = releaser_queue.pop_front();
-    std::cout << "lock_client::releaser 2\n";
+    // std::cout << "lock_client::releaser 2\n";
     // send release
 
     int r;
@@ -90,15 +90,15 @@ lock_client_cache::acquire(lock_protocol::lockid_t lid)
       int r;
       ret = cl->call(lock_protocol::acquire, cl->id(), id, seqnum, lid, r);
 
-      std::cout << ret << " " << r << std::endl;
+      // std::cout << ret << " " << r << std::endl;
 
       if (r == lock_protocol::OK) {
-        std::cout << "lock_client_cache::acquire: acquired " << lid << std::endl;
+        std::cout << id << " lock_client_cache::acquire: acquired " << lid << std::endl;
         it->second.lock_state = lock::LOCKED;
         break;
       }
       else {
-        std::cout << "lock_client_cache::acquire: retry " << lid << std::endl;
+        std::cout << id << " lock_client_cache::acquire: retry later" << lid << std::endl;
         
       }
       pthread_cond_wait(&(it->second.cond_var), &release_acquire_mutex);
@@ -113,15 +113,15 @@ lock_client_cache::acquire(lock_protocol::lockid_t lid)
       int r;
       ret = cl->call(lock_protocol::acquire, cl->id(), id, seqnum, lid, r);
 
-      std::cout << ret << " " << r << std::endl;
+      // std::cout << ret << " " << r << std::endl;
 
       if (r == lock_protocol::OK) {
-        std::cout << "lock_client_cache::acquire: acquired " << lid << std::endl;
+        std::cout << id << " lock_client_cache::acquire: acquired " << lid << std::endl;
         it->second.lock_state = lock::LOCKED;
         break;
       }
       else {
-        std::cout << "lock_client_cache::acquire: retry " << lid << std::endl;
+        std::cout << id << " lock_client_cache::acquire: retry later" << lid << std::endl;
         
       }
       pthread_cond_wait(&(it->second.cond_var), &release_acquire_mutex);
@@ -130,10 +130,12 @@ lock_client_cache::acquire(lock_protocol::lockid_t lid)
   }
   else if (it->second.lock_state == lock::FREE) {
     it->second.lock_state = lock::LOCKED;
+    std::cout << id << " lock_client_cache::acquire: acquired from cache" << lid << std::endl;
   }
   else if (it->second.lock_state == lock::LOCKED) {
     while(1) {
       if (it->second.lock_state == lock::FREE) {
+        std::cout << id << " lock_client_cache::acquire: acquired from cache" << lid << std::endl;
         it->second.lock_state = lock::LOCKED;
         break;
       }
@@ -161,12 +163,12 @@ lock_client_cache::acquire(lock_protocol::lockid_t lid)
       std::cout << ret << " " << r << std::endl;
 
       if (r == lock_protocol::OK) {
-        std::cout << "lock_client_cache::acquire: acquired " << lid << std::endl;
+        std::cout << id << " lock_client_cache::acquire: acquired " << lid << std::endl;
         it->second.lock_state = lock::LOCKED;
         break;
       }
       else {
-        std::cout << "lock_client_cache::acquire: retry " << lid << std::endl;
+        std::cout << id <<  " lock_client_cache::acquire: retry later" << lid << std::endl;
         
       }
       pthread_cond_wait(&(it->second.cond_var), &release_acquire_mutex);
@@ -184,6 +186,8 @@ lock_client_cache::release(lock_protocol::lockid_t lid)
   
   pthread_mutex_lock(&release_acquire_mutex);
 
+  std::cout << id <<  " lock_client_cache::release: released to cache " << lid << std::endl;
+
   locks[lid].lock_state = lock::FREE;
   pthread_cond_broadcast(&locks[lid].cond_var);
 
@@ -194,10 +198,12 @@ lock_client_cache::release(lock_protocol::lockid_t lid)
 rlock_protocol::status
 lock_client_cache::accept_retry_request(rlock_protocol::seqnum_t seqnum, lock_protocol::lockid_t lid, int &r)
 {
-  std::cout << "retry: seqnum " << seqnum << " lid " << lid << std::endl;
-
+  std::cout << id << " can retry now: seqnum " << seqnum << " lid " << lid << std::endl;
+  
+  // without this mutex we signal before acquiring thread goes to sleep
+  pthread_mutex_lock(&release_acquire_mutex);
   pthread_cond_broadcast(&locks[lid].cond_var);
-
+  pthread_mutex_unlock(&release_acquire_mutex);
   return rlock_protocol::OK;
 }
 
@@ -212,7 +218,7 @@ lock_client_cache::accept_revoke_request(rlock_protocol::seqnum_t seqnum, lock_p
 rlock_protocol::status
 lock_client_cache::release_to_lock_server(rlock_protocol::seqnum_t seqnum, lock_protocol::lockid_t lid, int &r)
 {
-  std::cout << "lock_client_cache::release_to_lock_server: seqnum " << seqnum << " lid " << lid << std::endl;
+  std::cout << id << " lock_client_cache::release_to_lock_server: seqnum " << seqnum << " lid " << lid << std::endl;
 
   pthread_mutex_lock(&release_acquire_mutex);
 
