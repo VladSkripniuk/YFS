@@ -86,27 +86,27 @@ lock_server_cache::retryer()
     // TODO: send retry RPC
     pthread_mutex_lock(&release_acquire_mutex);
   
-    std::list<lock_client_id_and_seqnum> waiting_list;
-    waiting_list = locks[lid].get_waiting_list_and_clear_it();
+    // std::list<lock_client_id_and_seqnum> waiting_list;
+    // waiting_list = locks[lid].get_waiting_list_and_clear_it();
 
     std::cout << "waiting list\n";
-    for (auto it = waiting_list.begin(); it != waiting_list.end(); it++) {
+    for (auto it = locks[lid].waiting_list.begin(); it != locks[lid].waiting_list.end(); it++) {
       std::cout << "\t" << it->client_id << std::endl;
     }
     // std::cout << "waiting list copied\n";
-    pthread_mutex_unlock(&release_acquire_mutex);
+    // pthread_mutex_unlock(&release_acquire_mutex);
     
     std::string client_id;
     rlock_protocol::seqnum_t seqnum;
 
     rpcc *cl;
 
-    while (!waiting_list.empty()) {
+ 
+    if (!locks[lid].waiting_list.empty()) {
+      lock_client_id_and_seqnum t = *(locks[lid].waiting_list.begin());
+      locks[lid].waiting_list.pop_front();
 
-      lock_client_id_and_seqnum t = *waiting_list.begin();
-      waiting_list.pop_front();
-
-      pthread_mutex_lock(&release_acquire_mutex);
+      // pthread_mutex_lock(&release_acquire_mutex);
       auto it = lock_clients.find(t.client_id);
       assert (it != lock_clients.end());
       cl = it->second.cl;
@@ -118,10 +118,13 @@ lock_server_cache::retryer()
 
       std::cout << "retrier: retry sent to " << t.client_id << " " << lid << std::endl;
       assert (ret == rlock_protocol::OK);
-
+    }
+    else{
+      pthread_mutex_unlock(&release_acquire_mutex);
     }
     
-    pthread_mutex_unlock(&release_acquire_mutex);
+    
+    // pthread_mutex_unlock(&release_acquire_mutex);
 
 
   }
