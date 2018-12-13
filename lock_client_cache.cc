@@ -78,111 +78,53 @@ lock_client_cache::acquire(lock_protocol::lockid_t lid)
   it = locks.find(lid);
 
   if (it == locks.end()) {
-
     lock lock_;
-    lock_.lock_state = lock::ACQUIRING;
+    lock_.lock_state = lock::NONE;
     locks[lid] = lock_;
     it = locks.find(lid);
-
-    while(1) {
-
-      int ret;
-      int r;
-      // we do not lock mutexes while calling RPCs
-
-      pthread_mutex_unlock(&release_acquire_mutex);
-      
-      ret = cl->call(lock_protocol::acquire, cl->id(), id, seqnum, lid, r);
-      
-      pthread_mutex_lock(&release_acquire_mutex);
-
-      // std::cout << ret << " " << r << std::endl;
-
-      if (r == lock_protocol::OK) {
-        std::cout << id << " lock_client_cache::acquire: acquired " << lid << std::endl;
-        it->second.lock_state = lock::LOCKED;
-        break;
-      }
-      else {
-        std::cout << id << " lock_client_cache::acquire: retry later" << lid << std::endl;
-        
-      }
-      ////TODO retry may signal before we start waiting on cond var
-      pthread_cond_wait(&(it->second.cond_var), &release_acquire_mutex);
-    }
-
   }
-  else if (it->second.lock_state == lock::NONE) {
-    //the same as it == locks.end()
-    it->second.lock_state = lock::ACQUIRING;
-    while(1) {
 
-      int ret;
-      int r;
-      ret = cl->call(lock_protocol::acquire, cl->id(), id, seqnum, lid, r);
 
-      // std::cout << ret << " " << r << std::endl;
+start:
+  switch (it->second.lock_state) {
+    case lock::NONE:
 
-      if (r == lock_protocol::OK) {
-        std::cout << id << " lock_client_cache::acquire: acquired " << lid << std::endl;
-        it->second.lock_state = lock::LOCKED;
-        break;
+      it->second.lock_state = lock::ACQUIRING;
+
+      while (1) {
+        int ret;
+        int r;
+        // should consider unlocking mutex here, though that leads to retrier signaling before we go to sleep
+        ret = cl->call(lock_protocol::acquire, cl->id(), id, seqnum, lid, r);
+
+        // std::cout << ret << " " << r << std::endl;
+
+        if (r == lock_protocol::OK) {
+          std::cout << id << " lock_client_cache::acquire: acquired " << lid << std::endl;
+          it->second.lock_state = lock::LOCKED;
+          break;
+        }
+        else {
+          std::cout << id << " lock_client_cache::acquire: retry later" << lid << std::endl;
+          
+        }
+        pthread_cond_wait(&(it->second.cond_var), &release_acquire_mutex);
       }
-      else {
-        std::cout << id << " lock_client_cache::acquire: retry later" << lid << std::endl;
-        
-      }
+      break;
+
+    case lock::ACQUIRING:
+    case lock::LOCKED:
+    case lock::RELEASING:
+
       pthread_cond_wait(&(it->second.cond_var), &release_acquire_mutex);
-    }
+      //lock_state might have changed to NONE and then to FREE while we were sleeping
+      goto start;
+    
+    case lock::FREE:
 
-  }
-  else if (it->second.lock_state == lock::FREE) {
-    it->second.lock_state = lock::LOCKED;
-    std::cout << id << " lock_client_cache::acquire: acquired from cache" << lid << std::endl;
-  }
-  else if (it->second.lock_state == lock::LOCKED) {
-    while(1) {
-      //TODO lock may become released, but we do not foresee any procedure to acquire it back
-      if (it->second.lock_state == lock::FREE) {
-        std::cout << id << " lock_client_cache::acquire: acquired from cache" << lid << std::endl;
-        it->second.lock_state = lock::LOCKED;
-        break;
-      }
-      pthread_cond_wait(&(it->second.cond_var), &release_acquire_mutex);
-    }
-  }
-  else if (it->second.lock_state == lock::ACQUIRING) {
-    //TODO lock may become released, but we do not foresee any procedure to acquire it back
-    ///the same as lock::LOCKED
-    while(1) {
-      if (it->second.lock_state == lock::FREE) {
-        it->second.lock_state = lock::LOCKED;
-        break;
-      }
-      pthread_cond_wait(&(it->second.cond_var), &release_acquire_mutex);
-    }
-  }
-  else if (it->second.lock_state == lock::RELEASING) {
-    // RELEASING transforms to NONE immediately, so it's impossible to see this, though let's make it  the same as NONE
-    while(1) {
-
-      int ret;
-      int r;
-      ret = cl->call(lock_protocol::acquire, cl->id(), id, seqnum, lid, r);
-
-      std::cout << ret << " " << r << std::endl;
-
-      if (r == lock_protocol::OK) {
-        std::cout << id << " lock_client_cache::acquire: acquired " << lid << std::endl;
-        it->second.lock_state = lock::LOCKED;
-        break;
-      }
-      else {
-        std::cout << id <<  " lock_client_cache::acquire: retry later" << lid << std::endl;
-        
-      }
-      pthread_cond_wait(&(it->second.cond_var), &release_acquire_mutex);
-    }
+      it->second.lock_state = lock::LOCKED;
+      std::cout << id << " lock_client_cache::acquire: acquired from cache" << lid << std::endl;
+      break;
   }
 
   pthread_mutex_unlock(&release_acquire_mutex);
@@ -229,7 +171,6 @@ lock_client_cache::accept_revoke_request(rlock_protocol::seqnum_t seqnum, lock_p
 rlock_protocol::status
 lock_client_cache::release_to_lock_server(rlock_protocol::seqnum_t seqnum, lock_protocol::lockid_t lid, int &r)
 {
-  std::cout << id << " lock_client_cache::release_to_lock_server: seqnum " << seqnum << " lid " << lid << std::endl;
 
   pthread_mutex_lock(&release_acquire_mutex);
 
@@ -237,58 +178,40 @@ lock_client_cache::release_to_lock_server(rlock_protocol::seqnum_t seqnum, lock_
 
   it = locks.find(lid);
 
-  if (it == locks.end()) {
-    // not possible
-  }
-  else if (it->second.lock_state == lock::NONE) {
-    // not possible
-  }
-  else if (it->second.lock_state == lock::FREE) {
-    it->second.lock_state = lock::RELEASING;
-    pthread_mutex_unlock(&release_acquire_mutex);
+start:
+  switch (it->second.lock_state) {
 
-    int r;
-    cl->call(lock_protocol::release, cl->id(), id, seqnum, lid, r);
+    case lock::NONE:
+    case lock::RELEASING:
 
-    pthread_mutex_lock(&release_acquire_mutex);
-    it->second.lock_state = lock::NONE;
-    
-  }
-  else if (it->second.lock_state == lock::LOCKED) {
-    while(1) {
-      if (it->second.lock_state == lock::FREE) {
-        it->second.lock_state = lock::RELEASING;
+      // do nothing, it was already released, might cause problems if reordering
+      break;
 
-        int r;
-        cl->call(lock_protocol::release, cl->id(), id, seqnum, lid, r);
+    case lock::FREE:
 
-        it->second.lock_state = lock::NONE;
+      it->second.lock_state = lock::RELEASING;
 
-        break;
-      }
+      pthread_mutex_unlock(&release_acquire_mutex);
+
+      int ret;
+      int r;
+      ret = cl->call(lock_protocol::release, cl->id(), id, seqnum, lid, r);
+
+      assert (ret == 0);
+
+      pthread_mutex_lock(&release_acquire_mutex);
+
+      std::cout << id << " lock_client_cache::release_to_lock_server: released seqnum " << seqnum << " lid " << lid << std::endl;
+      it->second.lock_state = lock::NONE;
+      pthread_cond_broadcast(&locks[lid].cond_var);
+      break;    
+      
+    case lock::ACQUIRING:
+    case lock::LOCKED:
+
       pthread_cond_wait(&(it->second.cond_var), &release_acquire_mutex);
-    }
-  }
-  else if (it->second.lock_state == lock::ACQUIRING) {
-    ///the same as lock::LOCKED
-    while(1) {
-      if (it->second.lock_state == lock::FREE) {
-        it->second.lock_state = lock::RELEASING;
-        pthread_mutex_unlock(&release_acquire_mutex);
+      goto start;
 
-        int r;
-        cl->call(lock_protocol::release, cl->id(), id, seqnum, lid, r);
-
-        pthread_mutex_lock(&release_acquire_mutex);
-        it->second.lock_state = lock::NONE;
-
-        break;
-      }
-      pthread_cond_wait(&(it->second.cond_var), &release_acquire_mutex);
-    }
-  }
-  else if (it->second.lock_state == lock::RELEASING) {
-    /// someone already releasing, do nothing
   }
 
   pthread_mutex_unlock(&release_acquire_mutex);

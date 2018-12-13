@@ -4,7 +4,7 @@
 #include <string>
 //#include "yfs_protocol.h"
 #include "extent_client.h"
-#include "lock_client.h"
+#include "lock_client_cache.h"
 #include <vector>
 #include <list>
 #include <random>
@@ -14,7 +14,7 @@
 
 class yfs_client {
   extent_client *ec;
-  lock_client *lc;
+  lock_client_cache *lc;
 public:
 
   typedef unsigned long long inum;
