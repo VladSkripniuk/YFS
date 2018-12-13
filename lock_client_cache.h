@@ -143,6 +143,8 @@ private:
   
 public:
   std::string id;
+  int n_successes = 0;
+  int n_failures = 0;
 
 public:
   static int last_port;

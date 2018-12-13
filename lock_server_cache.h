@@ -52,6 +52,7 @@ public:
 
 class lock_server_cache {
  public:
+  int n_retries=0;
   lock_server_cache();
   void revoker();
   void retryer();

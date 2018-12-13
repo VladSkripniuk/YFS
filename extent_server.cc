@@ -17,6 +17,7 @@ extent_server::extent_server() {
 
 int extent_server::put(extent_protocol::extentid_t id, std::string buf, int &)
 {
+  std::cout << "put " << id << std::endl;
   auto it = buffers.find(id);
   if (it == buffers.end()) {
     attr_buf new_buffer;
@@ -40,6 +41,7 @@ int extent_server::put(extent_protocol::extentid_t id, std::string buf, int &)
 
 int extent_server::get(extent_protocol::extentid_t id, std::string &buf)
 {
+  std::cout << "get " << id << std::endl;
   auto it = buffers.find(id);
   if (it == buffers.end()) {
     return extent_protocol::NOENT;

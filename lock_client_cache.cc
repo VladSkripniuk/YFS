@@ -102,9 +102,13 @@ start:
         if (r == lock_protocol::OK) {
           std::cout << id << " lock_client_cache::acquire: acquired " << lid << std::endl;
           it->second.lock_state = lock::LOCKED;
+          n_successes += 1;
+          std::cout << "N_SUCCESSES " << n_successes << std::endl;
           break;
         }
         else {
+          n_failures += 1;
+          std::cout << "N_FAILURES " << n_failures << std::endl;
           std::cout << id << " lock_client_cache::acquire: retry later" << lid << std::endl;
           
         }

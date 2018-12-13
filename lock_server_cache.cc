@@ -85,6 +85,8 @@ lock_server_cache::retryer()
 
     // TODO: send retry RPC
     pthread_mutex_lock(&release_acquire_mutex);
+    n_retries += 1;
+    std::cout << "RETRIES SENT " << n_retries << std::endl;
   
     // std::list<lock_client_id_and_seqnum> waiting_list;
     // waiting_list = locks[lid].get_waiting_list_and_clear_it();
