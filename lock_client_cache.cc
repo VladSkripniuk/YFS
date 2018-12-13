@@ -71,7 +71,7 @@ lock_client_cache::acquire(lock_protocol::lockid_t lid)
 {
   pthread_mutex_lock(&release_acquire_mutex);
 
-  seqnum += 1;
+  // seqnum += 1;
 
   std::map<lock_protocol::lockid_t, lock>::iterator it;
 
@@ -88,7 +88,13 @@ lock_client_cache::acquire(lock_protocol::lockid_t lid)
 
       int ret;
       int r;
+      // we do not lock mutexes while calling RPCs
+
+      pthread_mutex_unlock(&release_acquire_mutex);
+      
       ret = cl->call(lock_protocol::acquire, cl->id(), id, seqnum, lid, r);
+      
+      pthread_mutex_lock(&release_acquire_mutex);
 
       // std::cout << ret << " " << r << std::endl;
 
@@ -101,12 +107,14 @@ lock_client_cache::acquire(lock_protocol::lockid_t lid)
         std::cout << id << " lock_client_cache::acquire: retry later" << lid << std::endl;
         
       }
+      ////TODO retry may signal before we start waiting on cond var
       pthread_cond_wait(&(it->second.cond_var), &release_acquire_mutex);
     }
 
   }
   else if (it->second.lock_state == lock::NONE) {
     //the same as it == locks.end()
+    it->second.lock_state = lock::ACQUIRING;
     while(1) {
 
       int ret;
@@ -134,6 +142,7 @@ lock_client_cache::acquire(lock_protocol::lockid_t lid)
   }
   else if (it->second.lock_state == lock::LOCKED) {
     while(1) {
+      //TODO lock may become released, but we do not foresee any procedure to acquire it back
       if (it->second.lock_state == lock::FREE) {
         std::cout << id << " lock_client_cache::acquire: acquired from cache" << lid << std::endl;
         it->second.lock_state = lock::LOCKED;
@@ -143,6 +152,7 @@ lock_client_cache::acquire(lock_protocol::lockid_t lid)
     }
   }
   else if (it->second.lock_state == lock::ACQUIRING) {
+    //TODO lock may become released, but we do not foresee any procedure to acquire it back
     ///the same as lock::LOCKED
     while(1) {
       if (it->second.lock_state == lock::FREE) {
@@ -192,6 +202,7 @@ lock_client_cache::release(lock_protocol::lockid_t lid)
   pthread_cond_broadcast(&locks[lid].cond_var);
 
   pthread_mutex_unlock(&release_acquire_mutex);
+  
   return lock_protocol::OK;
 }
 
@@ -281,5 +292,7 @@ lock_client_cache::release_to_lock_server(rlock_protocol::seqnum_t seqnum, lock_
   }
 
   pthread_mutex_unlock(&release_acquire_mutex);
+
+  return lock_protocol::OK;
 
 }

@@ -107,54 +107,50 @@ public:
 };
 
 
+class lock {
+public:
+  enum xxstatus { NONE, FREE, LOCKED, ACQUIRING, RELEASING };
+
+  int lock_state;
+  pthread_cond_t cond_var;
+  lock_protocol::seqnum_t seqnum = 0; // seqnum of last acquire
+
+  lock() {
+    lock_state = FREE;
+    pthread_cond_init(&cond_var, NULL);
+  }
+
+};
+
 class lock_client_cache : public lock_client {
- 
- class lock {
-  public:
-    enum xxstatus { NONE, FREE, LOCKED, ACQUIRING, RELEASING };
 
-  public:
-    int lock_state;
-    pthread_cond_t cond_var;
-    lock_protocol::seqnum_t seqnum = 0; // seqnum of last acquire
-  
-  public:
-    lock() {
-      lock_state = FREE;
-      pthread_cond_init(&cond_var, NULL);
-    }
-
-  };
-
-  private:
-    lock_protocol::seqnum_t seqnum = 0;
-
-    std::map<lock_protocol::lockid_t, lock> locks;
-    pthread_mutex_t release_acquire_mutex; // this mutex protects locks and seqnum
-
-    thread_safe_queue<lock_protocol::lockid_t> releaser_queue; // push_back to releaser_queue wakes up releaser
-
-
-
- private:
+private:
   class lock_release_user *lu;
   int rlock_port;
   std::string hostname;
+
+  lock_protocol::seqnum_t seqnum = 0;
+
+  std::map<lock_protocol::lockid_t, lock> locks;
+  pthread_mutex_t release_acquire_mutex; // this mutex protects locks and seqnum
+
+  thread_safe_queue<lock_protocol::lockid_t> releaser_queue; // push_back to releaser_queue wakes up releaser
+
+
+  rlock_protocol::status release_to_lock_server(rlock_protocol::seqnum_t seqnum, lock_protocol::lockid_t lid, int &r);
+  rlock_protocol::status accept_retry_request(rlock_protocol::seqnum_t seqnum, lock_protocol::lockid_t lid, int &r);
+  rlock_protocol::status accept_revoke_request(rlock_protocol::seqnum_t seqnum, lock_protocol::lockid_t lid, int &r);
+  
+public:
   std::string id;
 
- public:
+public:
   static int last_port;
   lock_client_cache(std::string xdst, class lock_release_user *l = 0);
   virtual ~lock_client_cache() {};
   lock_protocol::status acquire(lock_protocol::lockid_t);
   virtual lock_protocol::status release(lock_protocol::lockid_t);
   void releaser();
-
-private:
-  rlock_protocol::status release_to_lock_server(rlock_protocol::seqnum_t seqnum, lock_protocol::lockid_t lid, int &r);
-
-  rlock_protocol::status accept_retry_request(rlock_protocol::seqnum_t seqnum, lock_protocol::lockid_t lid, int &r);
-  rlock_protocol::status accept_revoke_request(rlock_protocol::seqnum_t seqnum, lock_protocol::lockid_t lid, int &r);
 };
 #endif
 
