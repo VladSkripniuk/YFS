@@ -6,6 +6,7 @@
 #include <sstream>
 #include <iostream>
 #include <stdio.h>
+#include <unistd.h>
 
 
 static void *
@@ -43,6 +44,26 @@ lock_client_cache::lock_client_cache(std::string xdst,
 }
 
 
+struct delay_thread_struct {
+	lock_client_cache *cc;
+	lock_protocol::lockid_t lid;
+	//we can also put a sequence number here
+};
+
+static void *
+delaythread(void *x)
+{
+  //wait here for 0.1 seconds
+
+  usleep(10000 + (rand() % 10000));
+
+  delay_thread_struct *ptr = (delay_thread_struct *) x;
+  ptr->cc->release_to_lock_server(0, ptr->lid);
+  delete ptr;
+  return 0;
+}
+
+
 void
 lock_client_cache::releaser()
 {
@@ -58,8 +79,13 @@ lock_client_cache::releaser()
     // std::cout << "lock_client::releaser 2\n";
     // send release
 
-    int r;
-    release_to_lock_server(0, lid, r);
+    delay_thread_struct *t = new delay_thread_struct();
+    t->cc = this;
+    t->lid = lid;
+
+    pthread_t th;
+	int r = pthread_create(&th, NULL, &delaythread, (void *) t);
+	assert (r == 0);
 
   }
 
@@ -173,7 +199,7 @@ lock_client_cache::accept_revoke_request(rlock_protocol::seqnum_t seqnum, lock_p
 }
 
 rlock_protocol::status
-lock_client_cache::release_to_lock_server(rlock_protocol::seqnum_t seqnum, lock_protocol::lockid_t lid, int &r)
+lock_client_cache::release_to_lock_server(rlock_protocol::seqnum_t seqnum, lock_protocol::lockid_t lid)
 {
 
   pthread_mutex_lock(&release_acquire_mutex);
