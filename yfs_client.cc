@@ -225,7 +225,8 @@ yfs_client::status yfs_client::readdir(inum parent_dir, dir_content &parent_dir_
 
 yfs_client::status yfs_client::lookup(inum parent_dir, const char *name, inum &ino) {
 
-  std::cout << "yfs_client::lookup" << std::endl;
+  std::cout << "yfs_client::lookup "  << parent_dir <<  " *" << std::string(name) <<"*"  << std::endl;
+
 
   ScopedRemoteLock scoped_lock(lc, parent_dir);
 
@@ -252,7 +253,7 @@ yfs_client::status yfs_client::lookup(inum parent_dir, const char *name, inum &i
   }
 
   // TODO: it shouldn't be "OK"
-  return OK;
+  return NOENT;
 }
 
 
