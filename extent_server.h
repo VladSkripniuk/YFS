@@ -5,9 +5,29 @@
 
 #include <string>
 #include <map>
+#include <ctime>
 #include "extent_protocol.h"
 
 class extent_server {
+ private:
+
+  struct attr_buf {
+  	extent_protocol::attr attr;
+  	std::string buf;
+
+  	attr_buf() {
+  	  buf = "";
+  	  attr.size = 0;
+
+  	  time_t t = time(NULL);
+  	  
+  	  attr.atime = t;
+  	  attr.mtime = t;
+  	  attr.ctime = t;
+  	}
+  };
+
+  std::map<extent_protocol::extentid_t, attr_buf> buffers;
 
  public:
   extent_server();

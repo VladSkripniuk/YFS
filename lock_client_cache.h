@@ -69,14 +69,85 @@ class lock_release_user {
 //
 
 
+template<class T>
+class thread_safe_queue {
+ // method invokation blocks on a mutex, though I think
+ // it's ok to use this queue in handlers, which should
+ // run to completion without blocking, since mutex is
+ // locked for very short time, and no RPCs are called while holding this mutex
+private:
+  std::list<T> queue;
+  pthread_mutex_t m;
+  pthread_cond_t cv;
+public:
+  thread_safe_queue() {
+    pthread_mutex_init(&m, NULL);
+    pthread_cond_init(&cv, NULL);
+  }
+  void push_back(T a) {
+    pthread_mutex_lock(&m);
+    queue.push_back(a);
+    pthread_cond_broadcast(&cv);
+    pthread_mutex_unlock(&m);
+  }
+  T pop_front() {
+    pthread_mutex_lock(&m);
+    T r;
+    while(1) {
+      if (!queue.empty()) {
+        r = *queue.begin();
+        queue.pop_front();
+        break;
+      }
+      pthread_cond_wait(&cv, &m);
+    }
+    pthread_mutex_unlock(&m);
+    return r;
+  }
+};
+
+
+class lock {
+public:
+  enum xxstatus { NONE, FREE, LOCKED, ACQUIRING, RELEASING };
+
+  int lock_state;
+  pthread_cond_t cond_var;
+  lock_protocol::seqnum_t seqnum = 0; // seqnum of last acquire
+
+  lock() {
+    lock_state = FREE;
+    pthread_cond_init(&cond_var, NULL);
+  }
+
+};
+
 class lock_client_cache : public lock_client {
- private:
+
+private:
   class lock_release_user *lu;
   int rlock_port;
   std::string hostname;
-  std::string id;
 
- public:
+  lock_protocol::seqnum_t seqnum = 0;
+
+  std::map<lock_protocol::lockid_t, lock> locks;
+  pthread_mutex_t release_acquire_mutex; // this mutex protects locks and seqnum
+
+  thread_safe_queue<lock_protocol::lockid_t> releaser_queue; // push_back to releaser_queue wakes up releaser
+
+public:
+  rlock_protocol::status release_to_lock_server(rlock_protocol::seqnum_t seqnum, lock_protocol::lockid_t lid);
+private:
+  rlock_protocol::status accept_retry_request(rlock_protocol::seqnum_t seqnum, lock_protocol::lockid_t lid, int &r);
+  rlock_protocol::status accept_revoke_request(rlock_protocol::seqnum_t seqnum, lock_protocol::lockid_t lid, int &r);
+  
+public:
+  std::string id;
+  int n_successes = 0;
+  int n_failures = 0;
+
+public:
   static int last_port;
   lock_client_cache(std::string xdst, class lock_release_user *l = 0);
   virtual ~lock_client_cache() {};
