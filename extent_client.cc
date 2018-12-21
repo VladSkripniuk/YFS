@@ -226,6 +226,11 @@ extent_client::flush(extent_protocol::extentid_t eid)
         
         ret = cl->call(extent_protocol::put, eid, it->second.buf, r);
     }
+
+    pthread_mutex_lock(&buffers_mutex);
+    buffers.erase(it);
+    pthread_mutex_unlock(&buffers_mutex);
+
     
     std::cout << "extent_client::flush::end" << std::endl;
     
