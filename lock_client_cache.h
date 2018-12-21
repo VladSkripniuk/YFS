@@ -27,6 +27,7 @@ class lock_release_user_derived : public lock_release_user {
     ec = ec_;
   }
   virtual void dorelease(lock_protocol::lockid_t lockid) {
+      std::cout << "hello" << lockid << std::endl;
     ec->flush(lockid);
   }
   virtual ~lock_release_user_derived() {};

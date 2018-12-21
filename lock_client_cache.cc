@@ -201,7 +201,7 @@ lock_client_cache::accept_revoke_request(rlock_protocol::seqnum_t seqnum, lock_p
 rlock_protocol::status
 lock_client_cache::release_to_lock_server(rlock_protocol::seqnum_t seqnum, lock_protocol::lockid_t lid)
 {
-
+    std::cout << id << "lock_client_cache::release_to_lock_server" << std::endl;
   pthread_mutex_lock(&release_acquire_mutex);
 
   std::map<lock_protocol::lockid_t, lock>::iterator it;
@@ -218,13 +218,14 @@ start:
       break;
 
     case lock::FREE:
-
+          std::cout << id << "lock_client_cache::release_to_lock_server::FREE" << std::endl;
       it->second.lock_state = lock::RELEASING;
 
       pthread_mutex_unlock(&release_acquire_mutex);
 
       // flush to extent
       lu->dorelease(lid);
+          usleep(100000);
 
       int ret;
       int r;

@@ -11,6 +11,7 @@
 
 extent_client::extent_client(std::string dst)
 {
+    std::cout << "extent_client::extent_client" << std::endl;
   sockaddr_in dstsock;
 	make_sockaddr(dst.c_str(), &dstsock);
   cl = new rpcc(dstsock);
@@ -22,6 +23,7 @@ extent_client::extent_client(std::string dst)
 extent_protocol::status
 extent_client::get(extent_protocol::extentid_t eid, std::string &buf)
 {
+    std::cout << "extent_client::get::start" << std::endl;
   extent_protocol::status ret = extent_protocol::OK;
 
   std::map<extent_protocol::extentid_t, attr_buf_cached>::iterator it;
@@ -34,11 +36,14 @@ extent_client::get(extent_protocol::extentid_t eid, std::string &buf)
 
     ret = cl->call(extent_protocol::getattr, eid, t.attr);
     if (ret != extent_protocol::OK) {
+        std::cout << "extent_client::get::reterr1" << ret << std::endl;
       return ret;
     }
 
     ret = cl->call(extent_protocol::get, eid, t.buf);
+      std::cout << "extent_client::get::t.buf " << t.buf << std::endl;
     if (ret != extent_protocol::OK) {
+        std::cout << "extent_client::get::reterr2" << ret << std::endl;
       return ret;
     }
 
@@ -54,6 +59,7 @@ extent_client::get(extent_protocol::extentid_t eid, std::string &buf)
   
   pthread_mutex_lock(&buffers_mutex);
   buf = it->second.buf;
+    std::cout << "extent_client::get::it->second.buf " << it->second.buf << std::endl;
 
   time_t t = time(NULL);
   it->second.attr.atime = t;
@@ -61,6 +67,7 @@ extent_client::get(extent_protocol::extentid_t eid, std::string &buf)
   // it->second.is_dirty = 1;
   pthread_mutex_unlock(&buffers_mutex);
 
+    std::cout << "extent_client::get::end" << std::endl;
   return extent_protocol::OK;
 }
 
@@ -68,6 +75,7 @@ extent_protocol::status
 extent_client::getattr(extent_protocol::extentid_t eid, 
 		       extent_protocol::attr &attr)
 {
+    std::cout << "extent_client::getattr" << std::endl;
   extent_protocol::status ret = extent_protocol::OK;
 
   std::map<extent_protocol::extentid_t, attr_buf_cached>::iterator it;
@@ -84,6 +92,7 @@ extent_client::getattr(extent_protocol::extentid_t eid,
     }
 
     ret = cl->call(extent_protocol::get, eid, t.buf);
+      std::cout << "extent_client::getattr::t.buf " << t.buf << std::endl;
     if (ret != extent_protocol::OK) {
       return ret;
     }
@@ -107,51 +116,55 @@ extent_client::getattr(extent_protocol::extentid_t eid,
 extent_protocol::status
 extent_client::put(extent_protocol::extentid_t eid, std::string buf)
 {
-  extent_protocol::status ret = extent_protocol::OK;
-
-  std::map<extent_protocol::extentid_t, attr_buf_cached>::iterator it;
-  pthread_mutex_lock(&buffers_mutex);
-  it = buffers.find(eid);
-  pthread_mutex_unlock(&buffers_mutex);
-
-  if (it == buffers.end()) {
-    attr_buf_cached t;
-
-    ret = cl->call(extent_protocol::getattr, eid, t.attr);
-    ret = cl->call(extent_protocol::get, eid, t.buf);
-    if (ret != extent_protocol::OK) {
-      //newly created
-      //everything is done in constructor
-    }
-
+    std::cout << "extent_client::put" << std::endl;
+    extent_protocol::status ret = extent_protocol::OK;
+    
+    std::map<extent_protocol::extentid_t, attr_buf_cached>::iterator it;
     pthread_mutex_lock(&buffers_mutex);
-    buffers[eid] = t;
-
     it = buffers.find(eid);
     pthread_mutex_unlock(&buffers_mutex);
-  }
-
-
-  pthread_mutex_lock(&buffers_mutex);
-  it->second.buf = buf;
-  it->second.attr.size = buf.length();
-
-  time_t t = time(NULL);
-
-  it->second.attr.ctime = t;
-  it->second.attr.mtime = t;
-
-  it->second.is_dirty = 1;
-  it->second.is_deleted = 0;
-
-  pthread_mutex_unlock(&buffers_mutex);
-
-  return extent_protocol::OK;
+    
+    if (it == buffers.end()) {
+        attr_buf_cached t;
+        
+        ret = cl->call(extent_protocol::getattr, eid, t.attr);
+        ret = cl->call(extent_protocol::get, eid, t.buf);
+        std::cout << "extent_client::put::t.buf " << t.buf << std::endl;
+        
+        if (ret != extent_protocol::OK) {
+            //newly created
+            //everything is done in constructor
+        }
+        
+        pthread_mutex_lock(&buffers_mutex);
+        buffers[eid] = t;
+        it = buffers.find(eid);
+        pthread_mutex_unlock(&buffers_mutex);
+    }
+    
+    
+    pthread_mutex_lock(&buffers_mutex);
+    it->second.buf = buf;
+    std::cout << "extent_client::put::it->second.buf " << it->second.buf << std::endl;
+    it->second.attr.size = buf.length();
+    
+    time_t t = time(NULL);
+    
+    it->second.attr.ctime = t;
+    it->second.attr.mtime = t;
+    
+    it->second.is_dirty = 1;
+    it->second.is_deleted = 0;
+    
+    pthread_mutex_unlock(&buffers_mutex);
+    
+    return extent_protocol::OK;
 }
 
 extent_protocol::status
 extent_client::remove(extent_protocol::extentid_t eid)
 {
+    std::cout << "extent_client::remove" << std::endl;
   extent_protocol::status ret = extent_protocol::OK;
 
   std::map<extent_protocol::extentid_t, attr_buf_cached>::iterator it;
@@ -167,6 +180,7 @@ extent_client::remove(extent_protocol::extentid_t eid)
       return ret;
     }
     ret = cl->call(extent_protocol::get, eid, t.buf);
+      std::cout << "extent_client::remove::t.buf " << t.buf << "<" << std::endl;
     if (ret != extent_protocol::OK) {
       return ret;
     }
@@ -187,22 +201,33 @@ extent_client::remove(extent_protocol::extentid_t eid)
 extent_protocol::status
 extent_client::flush(extent_protocol::extentid_t eid)
 {
-  std::map<extent_protocol::extentid_t, attr_buf_cached>::iterator it;
-  pthread_mutex_lock(&buffers_mutex);
-  it = buffers.find(eid);
-  pthread_mutex_unlock(&buffers_mutex);
+    std::cout << "extent_client::flush" << std::endl;
+    std::map<extent_protocol::extentid_t, attr_buf_cached>::iterator it;
+    pthread_mutex_lock(&buffers_mutex);
+    it = buffers.find(eid);
+    pthread_mutex_unlock(&buffers_mutex);
 
-  if (it->second.is_deleted) {
-    int r;
-    int ret;
-    ret = cl->call(extent_protocol::remove, eid, r);
-  }
-
-  if (it->second.is_dirty) {
-    int r;
-    int ret;
-    ret = cl->call(extent_protocol::put, eid, it->second.buf, r);
-  }
-
-  return extent_protocol::OK;
+    if (it == buffers.end()) {
+        return extent_protocol::OK;
+    }
+    
+    
+    if (it->second.is_deleted) {
+        std::cout << "extent_client::flush::it->second.is_deleted" << std::endl;
+        int r;
+        int ret;
+        ret = cl->call(extent_protocol::remove, eid, r);
+    }
+    
+    if (it->second.is_dirty) {
+        std::cout << "extent_client::flush::it->second.is_dirty <" << eid << "> " << it->second.buf << " " << std::endl;
+        int r;
+        int ret;
+        
+        ret = cl->call(extent_protocol::put, eid, it->second.buf, r);
+    }
+    
+    std::cout << "extent_client::flush::end" << std::endl;
+    
+    return extent_protocol::OK;
 }
