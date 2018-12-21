@@ -223,6 +223,9 @@ start:
 
       pthread_mutex_unlock(&release_acquire_mutex);
 
+      // flush to extent
+      lu->dorelease(lid);
+
       int ret;
       int r;
       ret = cl->call(lock_protocol::release, cl->id(), id, seqnum, lid, r);

@@ -27,6 +27,7 @@ class extent_server {
   	}
   };
 
+  pthread_mutex_t buffers_mutex;
   std::map<extent_protocol::extentid_t, attr_buf> buffers;
 
  public:

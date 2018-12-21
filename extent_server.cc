@@ -1,6 +1,7 @@
 // the extent server implementation
 
 #include "extent_server.h"
+#include "rpc/slock.h"
 #include <sstream>
 #include <stdio.h>
 #include <unistd.h>
@@ -17,6 +18,7 @@ extent_server::extent_server() {
 
 int extent_server::put(extent_protocol::extentid_t id, std::string buf, int &)
 {
+  ScopedLock scoped_lock(&buffers_mutex);
   std::cout << "put " << id << std::endl;
   auto it = buffers.find(id);
   if (it == buffers.end()) {
@@ -41,6 +43,7 @@ int extent_server::put(extent_protocol::extentid_t id, std::string buf, int &)
 
 int extent_server::get(extent_protocol::extentid_t id, std::string &buf)
 {
+  ScopedLock scoped_lock(&buffers_mutex);
   std::cout << "get " << id << std::endl;
   auto it = buffers.find(id);
   if (it == buffers.end()) {
@@ -60,6 +63,7 @@ int extent_server::get(extent_protocol::extentid_t id, std::string &buf)
 
 int extent_server::getattr(extent_protocol::extentid_t id, extent_protocol::attr &a)
 {
+  ScopedLock scoped_lock(&buffers_mutex);
   auto it = buffers.find(id);
   if (it == buffers.end()) {
     return extent_protocol::NOENT;
@@ -71,6 +75,7 @@ int extent_server::getattr(extent_protocol::extentid_t id, extent_protocol::attr
 
 int extent_server::remove(extent_protocol::extentid_t id, int &)
 {
+  ScopedLock scoped_lock(&buffers_mutex);
   auto it = buffers.find(id);
   if (it == buffers.end()) {
     return extent_protocol::NOENT;

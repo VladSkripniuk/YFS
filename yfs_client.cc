@@ -13,7 +13,9 @@
 yfs_client::yfs_client(std::string extent_dst, std::string lock_dst) : generator(rd()), distribution(0,0xFFFFFFFFFFFFFFFF) {
   ec = new extent_client(extent_dst);
 
-  lc = new lock_client_cache(lock_dst);
+  lock_release_user_derived *ptr = new lock_release_user_derived(ec);
+
+  lc = new lock_client_cache(lock_dst, ptr);
 }
 
 yfs_client::inum

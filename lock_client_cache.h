@@ -8,6 +8,7 @@
 #include "lock_protocol.h"
 #include "rpc.h"
 #include "lock_client.h"
+#include "extent_client.h"
 
 // Classes that inherit lock_release_user can override dorelease so that 
 // that they will be called when lock_client releases a lock.
@@ -16,6 +17,19 @@ class lock_release_user {
  public:
   virtual void dorelease(lock_protocol::lockid_t) = 0;
   virtual ~lock_release_user() {};
+};
+
+
+class lock_release_user_derived : public lock_release_user {
+ public:
+  extent_client *ec;
+  lock_release_user_derived(extent_client *ec_) {
+    ec = ec_;
+  }
+  virtual void dorelease(lock_protocol::lockid_t lockid) {
+    ec->flush(lockid);
+  }
+  virtual ~lock_release_user_derived() {};
 };
 
 
