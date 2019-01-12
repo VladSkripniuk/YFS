@@ -116,7 +116,7 @@ lock_server_cache::retryer()
       int r;
       int ret = cl->call(rlock_protocol::retry, seqnum, lid, r);
 
-      std::cout << "retrier call " << ret <<" " <<r<<std::endl;
+      std::cout << "retrier call " << ret << " " << r << std::endl;
 
       std::cout << "retrier: retry sent to " << t.client_id << " " << lid << std::endl;
       assert (ret == rlock_protocol::OK);
@@ -124,10 +124,6 @@ lock_server_cache::retryer()
     else{
       pthread_mutex_unlock(&release_acquire_mutex);
     }
-    
-    
-    // pthread_mutex_unlock(&release_acquire_mutex);
-
 
   }
 

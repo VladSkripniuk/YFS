@@ -11,13 +11,13 @@ class extent_client {
  private:
   rpcc *cl;
 
-  struct attr_buf_cached {
+  struct attribute_cached {
   	extent_protocol::attr attr;
   	std::string buf;
   	int is_dirty;
   	int is_deleted;
 
-  	attr_buf_cached() {
+  	attribute_cached() {
   	  buf = "";
   	  attr.size = 0;
   	  is_dirty = 0;
@@ -32,7 +32,7 @@ class extent_client {
   };
 
   pthread_mutex_t buffers_mutex;
-  std::map<extent_protocol::extentid_t, attr_buf_cached> buffers;
+  std::map<extent_protocol::extentid_t, attribute_cached> buffers;
 
  public:
   extent_client(std::string dst);

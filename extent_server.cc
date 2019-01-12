@@ -15,11 +15,9 @@ extent_server::extent_server() {
     this->put(1, std::string(""), t);
 }
 
-
-int extent_server::put(extent_protocol::extentid_t id, std::string buf, int &)
-{
+int extent_server::put(extent_protocol::extentid_t id, std::string buf, int &) {
     ScopedLock scoped_lock(&buffers_mutex);
-    std::cout << "put " << "<" <<id << "><" << buf << ">" << std::endl;
+    std::cout << "put " << "<" << id << "><" << buf << ">" << std::endl;
     auto it = buffers.find(id);
     
     // Add empty buf
@@ -41,8 +39,7 @@ int extent_server::put(extent_protocol::extentid_t id, std::string buf, int &)
     return extent_protocol::OK;
 }
 
-int extent_server::get(extent_protocol::extentid_t id, std::string &buf)
-{
+int extent_server::get(extent_protocol::extentid_t id, std::string &buf) {
     ScopedLock scoped_lock(&buffers_mutex);
     std::cout << "get " << id << std::endl;
     auto it = buffers.find(id);
@@ -59,8 +56,7 @@ int extent_server::get(extent_protocol::extentid_t id, std::string &buf)
     return extent_protocol::OK;
 }
 
-int extent_server::getattr(extent_protocol::extentid_t id, extent_protocol::attr &a)
-{
+int extent_server::getattr(extent_protocol::extentid_t id, extent_protocol::attr &a) {
     ScopedLock scoped_lock(&buffers_mutex);
     auto it = buffers.find(id);
     if (it == buffers.end()) {
@@ -71,18 +67,13 @@ int extent_server::getattr(extent_protocol::extentid_t id, extent_protocol::attr
     return extent_protocol::OK;
 }
 
-int extent_server::remove(extent_protocol::extentid_t id, int &)
-{
+int extent_server::remove(extent_protocol::extentid_t id, int &) {
     ScopedLock scoped_lock(&buffers_mutex);
     auto it = buffers.find(id);
     if (it == buffers.end()) {
         return extent_protocol::NOENT;
     }
-    
     buffers.erase(it);
-    
     return extent_protocol::OK;
-    
-    // return extent_protocol::IOERR;
 }
 
