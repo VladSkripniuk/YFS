@@ -186,8 +186,7 @@ lock_client_cache::accept_revoke_request(rlock_protocol::seqnum_t seqnum, lock_p
 }
 
 rlock_protocol::status
-lock_client_cache::release_to_lock_server(rlock_protocol::seqnum_t seqnum, lock_protocol::lockid_t lid)
-{
+lock_client_cache::release_to_lock_server(rlock_protocol::seqnum_t seqnum, lock_protocol::lockid_t lid) {
     std::cout << id << "lock_client_cache::release_to_lock_server" << std::endl;
     pthread_mutex_lock(&release_acquire_mutex);
     
@@ -195,16 +194,11 @@ lock_client_cache::release_to_lock_server(rlock_protocol::seqnum_t seqnum, lock_
     
     it = locks.find(lid);
     
-start:
-    switch (it->second.lock_state) {
-            
-        case lock::NONE:
-        case lock::RELEASING:
-            
-            // do nothing, it was already released, might cause problems if reordering
-            break;
-            
-        case lock::FREE:
+    while(1) {
+        if (it->second.lock_state == lock::ACQUIRING || it->second.lock_state == lock::LOCKED) {
+            pthread_cond_wait(&(it->second.cond_var), &release_acquire_mutex);
+            continue;
+        } else if (it->second.lock_state == lock::FREE) {
             std::cout << id << "lock_client_cache::release_to_lock_server::FREE" << std::endl;
             it->second.lock_state = lock::RELEASING;
             
@@ -225,18 +219,15 @@ start:
             std::cout << id << " lock_client_cache::release_to_lock_server: released seqnum " << seqnum << " lid " << lid << std::endl;
             it->second.lock_state = lock::NONE;
             pthread_cond_broadcast(&locks[lid].cond_var);
-            break;
             
-        case lock::ACQUIRING:
-        case lock::LOCKED:
-            
-            pthread_cond_wait(&(it->second.cond_var), &release_acquire_mutex);
-            goto start;
-            
+        } else if (it->second.lock_state == lock::NONE
+                   || it->second.lock_state == lock::RELEASING) {
+            // do nothing, it was already released, might cause problems if reordering
+        } else {
+            throw "Something is wrong with [it->second.lock_state]!";
+        }
+        break;
     }
-    
     pthread_mutex_unlock(&release_acquire_mutex);
-    
     return lock_protocol::OK;
-    
 }
