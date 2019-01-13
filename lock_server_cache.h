@@ -47,6 +47,10 @@ public:
 		pthread_mutex_unlock(&m);
 		return r;
 	}
+    
+    bool is_empty() {
+        return queue.empty();
+    }
 };
 
 
@@ -146,7 +150,10 @@ protected:
 protected:
   std::map<lock_protocol::lockid_t, lock> locks;
   std::map<std::string, lock_client_info> lock_clients;
+    
   pthread_mutex_t release_acquire_mutex; // this mutex protects locks, lock_clients and most importantly, nacquire
+    pthread_cond_t release_cond_var;
+    pthread_cond_t revoke_cond_var;
 
   thread_safe_queue<lock_protocol::lockid_t> retrier_queue; // push_back to safe_queue wakes up retrier
   thread_safe_queue<lock_protocol::lockid_t> revoker_queue; // push_back to safe_queue wakes up revoker

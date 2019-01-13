@@ -26,6 +26,7 @@ retrythread(void *x)
 lock_server_cache::lock_server_cache()
 {
   pthread_mutex_init(&release_acquire_mutex, NULL);
+    pthread_cond_init(&revoke_cond_var, NULL);
  
   pthread_t th;
   int r = pthread_create(&th, NULL, &revokethread, (void *) this);
@@ -34,39 +35,36 @@ lock_server_cache::lock_server_cache()
   assert (r == 0);
 }
 
+// This method should be a continuous loop, that sends revoke
+// messages to lock holders whenever another client wants the
+// same lock
 void
-lock_server_cache::revoker()
-{
-
-  // This method should be a continuous loop, that sends revoke
-  // messages to lock holders whenever another client wants the
-  // same lock
-  lock_protocol::lockid_t lid;
-  while (1) {
-    std::cout << "revoker1\n";
-    lid = revoker_queue.pop_front();
-    std::cout << "revoker2\n";
-    // send revoke RPC
-    pthread_mutex_lock(&release_acquire_mutex);
-    // std::cout << "revoker3\n";
-    rpcc *cl;
-    std::cout << "revoke: " << locks[lid].owner << " " << lid << std::endl;
-
-    auto it = lock_clients.find(locks[lid].owner);
-    assert (it != lock_clients.end());
-    cl = it->second.cl;
+lock_server_cache::revoker() {
+    while (1) {
+        pthread_mutex_lock(&release_acquire_mutex);
+        while (revoker_queue.is_empty()) {
+            pthread_cond_wait(&revoke_cond_var, &release_acquire_mutex);
+        }
+        lock_protocol::lockid_t lid;
+        lid = revoker_queue.pop_front();
     
-    rlock_protocol::seqnum_t seqnum;
-    seqnum = locks[lid].seqnum;
-  
-    pthread_mutex_unlock(&release_acquire_mutex);
+        std::cout << "revoke: " << locks[lid].owner << " " << lid << std::endl;
+        
+        auto client = lock_clients.find(locks[lid].owner);
+        if (client == lock_clients.end())
+            throw std::runtime_error("There is no client to revoke. ");
 
-    int r;
-    int ret = cl->call(rlock_protocol::revoke, seqnum, lid, r);
-    assert (ret == rlock_protocol::OK);
-
-  }
-
+        rpcc *cl;
+        cl = client->second.cl;
+        
+        rlock_protocol::seqnum_t seqnum = locks[lid].seqnum;
+        pthread_mutex_unlock(&release_acquire_mutex);
+        
+        int r;
+        auto ret = cl->call(rlock_protocol::revoke, seqnum, lid, r);
+        if (ret != rlock_protocol::OK)
+            throw std::runtime_error("[rlock_protocol::revoke] != OK. ");
+    }
 }
 
 
@@ -174,6 +172,9 @@ lock_server_cache::acquire(int clt, std::string client_socket, lock_protocol::se
     /// actually not, because we hold release_acquire_mutex
     if (!locks[lid].waiting_list.empty()) {
       revoker_queue.push_back(lid);
+
+        //TODO: Isn't it useless?
+        pthread_cond_signal(&revoke_cond_var);
     }
     
   }
@@ -181,6 +182,7 @@ lock_server_cache::acquire(int clt, std::string client_socket, lock_protocol::se
     locks[lid].add_to_waiting_list(client_socket, lid);
 
     revoker_queue.push_back(lid);
+      pthread_cond_signal(&revoke_cond_var);
     std::cout << "acquire request retry: " << client_socket << " " << lid << std::endl;
 
     r = lock_protocol::RETRY;
