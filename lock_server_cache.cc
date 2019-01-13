@@ -186,7 +186,7 @@ lock_server_cache::release(int clt, std::string client_socket, lock_protocol::se
     if ((it != locks.end()) && (!it->second.is_free())) {
         nacquire--;
         
-        std::map<std::string,lock_client_info>::iterator it1;
+        std::map<std::string, lock_client>::iterator it1;
         it1 = lock_clients.find(client_socket);
         if (it1 != lock_clients.end()) {
             it1->second.nacquire -= 1;
@@ -214,9 +214,9 @@ lock_server_cache::subscribe(int clt, std::string client_socket, int &r) {
         throw std::runtime_error("Client tries to subscribe twice.");
     }
     
-    // Add new lock_client
-    lock_client_info new_lock_client_info(client_socket);
-    lock_clients.insert(std::pair<std::string, lock_client_info>(client_socket, new_lock_client_info));
+    // Add a new lock_client
+    lock_client new_lock_client(client_socket);
+    lock_clients.insert(std::pair<std::string, lock_client>(client_socket, new_lock_client));
     
     pthread_mutex_unlock(&release_acquire_mutex);
     return lock_protocol::OK;

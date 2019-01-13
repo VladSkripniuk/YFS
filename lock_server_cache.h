@@ -126,11 +126,13 @@ protected:
 
   };
     
-    struct lock_client_info {
+    struct lock_client {
+        std::string client_socket;
         int nacquire;
         rpcc *cl;
         
-        lock_client_info(std::string client_socket) {
+        lock_client(std::string socket) {
+            client_socket = socket;
             nacquire = 0;
             
             sockaddr_in dstsock;
@@ -144,7 +146,7 @@ protected:
     
 protected:
     std::map<lock_protocol::lockid_t, lock> locks;
-    std::map<std::string, lock_client_info> lock_clients;
+    std::map<std::string, lock_client> lock_clients;
     
     thread_safe_queue<lock_protocol::lockid_t> retry_queue; // push_back to safe_queue wakes up retrier
     thread_safe_queue<lock_protocol::lockid_t> revoke_queue; // push_back to safe_queue wakes up revoker
