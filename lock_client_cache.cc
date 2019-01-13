@@ -95,7 +95,22 @@ lock_client_cache::releaser()
 lock_protocol::status
 lock_client_cache::acquire(lock_protocol::lockid_t lid) {
     pthread_mutex_lock(&release_acquire_mutex);
-    // seqnum += 1;
+    
+    lock_protocol::status ret;
+    
+    // TODO: Should be w/o mutex
+    // If this is the first contact with the server,
+    // I need to subscribe for async rpc responses
+    if (last_seqnum == 0) {
+        int r;
+        ret = cl->call(lock_protocol::subscribe, cl->id(), id, last_seqnum, lid, r);
+        if (ret != lock_protocol::OK) {
+            return ret;
+        }
+    }
+    last_seqnum++;
+    
+
     
     std::map<lock_protocol::lockid_t, cached_lock>::iterator it;
     
@@ -118,11 +133,10 @@ lock_client_cache::acquire(lock_protocol::lockid_t lid) {
         } else if (it->second.lock_state == cached_lock::NONE) {
             it->second.lock_state = cached_lock::ACQUIRING;
             while (1) {
-                int ret;
                 int r;
                 // should consider unlocking mutex here, though that
                 // leads to retrier signaling before we go to sleep
-                ret = cl->call(lock_protocol::acquire, cl->id(), id, seqnum, lid, r);
+                ret = cl->call(lock_protocol::acquire, cl->id(), id, last_seqnum, lid, r);
                 if (r == lock_protocol::OK) {
                     std::cout << id << " lock_client_cache::acquire: acquired " << lid << std::endl;
                     it->second.lock_state = cached_lock::LOCKED;

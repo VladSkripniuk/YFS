@@ -144,7 +144,7 @@ private:
   int rlock_port;
   std::string hostname;
 
-  lock_protocol::seqnum_t seqnum = 0;
+  lock_protocol::seqnum_t last_seqnum = 0;
 
   std::map<lock_protocol::lockid_t, cached_lock> cached_locks;
     

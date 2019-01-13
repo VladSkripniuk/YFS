@@ -140,9 +140,12 @@ lock_server_cache::stat(int clt, lock_protocol::lockid_t lid, int &r)
 
 lock_protocol::status
 lock_server_cache::acquire(int clt, std::string client_socket, lock_protocol::seqnum_t seqnum, lock_protocol::lockid_t lid, int &r) {
-
-  std::cout << "acquire request (clt " << client_socket << ", seqnum " << seqnum << ", lock id: " << lid << ")\n";
+    if (lock_clients.find(client_socket) == lock_clients.end()) {
+        throw std::runtime_error("Unsubscribed client tries to acquire lock.");
+    }
+    
   pthread_mutex_lock(&release_acquire_mutex);
+    std::cout << "acquire request (clt " << client_socket << ", seqnum " << seqnum << ", lock id: " << lid << ")\n";
 
   std::map<lock_protocol::lockid_t, lock>::iterator it;
   it = locks.find(lid);
@@ -154,13 +157,7 @@ lock_server_cache::acquire(int clt, std::string client_socket, lock_protocol::se
     it = locks.find(lid);
   }
 
-  // add new lock_client if it didn't exist before
-  if (lock_clients.find(client_socket) == lock_clients.end()) {
-    lock_client_info new_lock_client_info(client_socket);
-    // std::cout << "acquire, inserted: " << client_socket << std::endl;
-    // lock_clients[client_socket] = new_lock_client_info;
-    lock_clients.insert(std::pair<std::string, lock_client_info>(client_socket, new_lock_client_info));
-  }
+
 
 
   if (it->second.is_free()) {
@@ -224,4 +221,22 @@ lock_server_cache::release(int clt, std::string client_socket, lock_protocol::se
   pthread_mutex_unlock(&release_acquire_mutex);
   
   return lock_protocol::OK;
+}
+
+// TODO: delete useless params
+lock_protocol::status
+lock_server_cache::subscribe(int clt, std::string client_socket, lock_protocol::seqnum_t seqnum, lock_protocol::lockid_t lid, int &r) {
+    pthread_mutex_lock(&release_acquire_mutex);
+    std::cout << "subscribe request (clt " << client_socket << ", seqnum " << seqnum << ", lock id: " << lid << ")\n";
+    
+    if (lock_clients.find(client_socket) != lock_clients.end()) {
+        throw std::runtime_error("Client tries to subscribe twice.");
+    }
+    
+    // add new lock_client
+    lock_client_info new_lock_client_info(client_socket);
+    lock_clients.insert(std::pair<std::string, lock_client_info>(client_socket, new_lock_client_info));
+    
+    pthread_mutex_unlock(&release_acquire_mutex);
+    return lock_protocol::OK;
 }
