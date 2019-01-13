@@ -56,7 +56,7 @@ delaythread(void *x) {
     usleep(10000 + (rand() % 10000));
     
     delay_thread_struct *ptr = (delay_thread_struct *) x;
-    ptr->cc->release_to_lock_server(0, ptr->lid);
+    ptr->cc->release_to_lock_server(ptr->lid);
     delete ptr;
     return 0;
 }
@@ -185,47 +185,51 @@ lock_client_cache::accept_revoke_request(rlock_protocol::seqnum_t seqnum, lock_p
 }
 
 rlock_protocol::status
-lock_client_cache::release_to_lock_server(rlock_protocol::seqnum_t seqnum, lock_protocol::lockid_t lid) {
+lock_client_cache::release_to_lock_server(lock_protocol::lockid_t lid) {
     pthread_mutex_lock(&release_acquire_mutex);
     std::cout << client_socket << "lock_client_cache::release_to_lock_server" << std::endl;
     
-    std::map<lock_protocol::lockid_t, cached_lock>::iterator it;
+    auto lock = cached_locks.find(lid);
+    if (lock == cached_locks.end()) {
+        throw std::runtime_error("Lock client cache tryes to release lock that it doesn't hold. ");
+    }
     
-    it = cached_locks.find(lid);
     
     while(1) {
-        if (it->second.lock_state == cached_lock::ACQUIRING
-            || it->second.lock_state == cached_lock::LOCKED) {
-            pthread_cond_wait(&(it->second.cond_var), &release_acquire_mutex);
+        if (lock->second.lock_state == cached_lock::ACQUIRING
+            || lock->second.lock_state == cached_lock::LOCKED) {
+            pthread_cond_wait(&(lock->second.cond_var), &release_acquire_mutex);
             continue;
-        } else if (it->second.lock_state == cached_lock::FREE) {
+        } else if (lock->second.lock_state == cached_lock::FREE) {
             std::cout << client_socket << "lock_client_cache::release_to_lock_server::FREE" << std::endl;
-            it->second.lock_state = cached_lock::RELEASING;
+            lock->second.lock_state = cached_lock::RELEASING;
             
             pthread_mutex_unlock(&release_acquire_mutex);
             
             // flush to extent
             lu->dorelease(lid);
-            usleep(100000);
+            //usleep(100000);
             
-            int ret;
             int r;
-            ret = cl->call(lock_protocol::release, cl->id(), client_socket, seqnum, lid, r);
-            
-            assert (ret == 0);
+            auto ret = cl->call(lock_protocol::release, cl->id(), client_socket, lock->second.seqnum, lid, r);
+            if (ret != lock_protocol::OK) {
+                throw std::runtime_error("Some problem with RPC in release_to_lock_server. ");
+            }
             
             pthread_mutex_lock(&release_acquire_mutex);
             
             std::cout << client_socket << " lock_client_cache::release_to_lock_server: released seqnum "
-                    << seqnum << " lid " << lid << std::endl;
-            it->second.lock_state = cached_lock::NONE;
+                    << lock->second.seqnum << " lid " << lid << std::endl;
+            lock->second.lock_state = cached_lock::NONE;
             pthread_cond_broadcast(&cached_locks[lid].cond_var);
             
-        } else if (it->second.lock_state == cached_lock::NONE
-                   || it->second.lock_state == cached_lock::RELEASING) {
+        } else if (lock->second.lock_state == cached_lock::NONE
+                   || lock->second.lock_state == cached_lock::RELEASING) {
+            
+            // TODO: ??
             // do nothing, it was already released, might cause problems if reordering
         } else {
-            throw "Something is wrong with [it->second.lock_state]!";
+            throw std::runtime_error("Something is wrong with [it->second.lock_state]!");
         }
         break;
     }

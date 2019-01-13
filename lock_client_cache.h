@@ -152,7 +152,7 @@ private:
   thread_safe_queue<lock_protocol::lockid_t> releaser_queue; // push_back to releaser_queue wakes up releaser
 
 public:
-  rlock_protocol::status release_to_lock_server(rlock_protocol::seqnum_t seqnum, lock_protocol::lockid_t lid);
+  rlock_protocol::status release_to_lock_server(lock_protocol::lockid_t lid);
 private:
   rlock_protocol::status accept_retry_request(rlock_protocol::seqnum_t seqnum, lock_protocol::lockid_t lid, int &r);
   rlock_protocol::status accept_revoke_request(rlock_protocol::seqnum_t seqnum, lock_protocol::lockid_t lid, int &r);

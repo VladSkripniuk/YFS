@@ -126,7 +126,7 @@ lock_server_cache::acquire(int clt, std::string client_socket, lock_protocol::se
     }
     
     pthread_mutex_lock(&release_acquire_mutex);
-    std::cout << "acquire request (clt: " << clt << ", cl_socket: " << client_socket << ", seqnum: " << seqnum << ", lock id: " << lid << ")\n";
+    std::cout << "acquire request (client socket: " << client_socket << ", seqnum: " << seqnum << ", lock id: " << lid << ")\n";
     
     std::map<lock_protocol::lockid_t, lock>::iterator it;
     it = locks.find(lid);
@@ -181,7 +181,7 @@ lock_server_cache::acquire(int clt, std::string client_socket, lock_protocol::se
 lock_protocol::status
 lock_server_cache::release(int clt, std::string client_socket, lock_protocol::seqnum_t seqnum, lock_protocol::lockid_t lid, int &r) {
     
-    std::cout << "release request (clt " << client_socket << ", lock id: " << lid << ")\n";
+    std::cout << "release request (client socket: " << client_socket << ", seqnum: "<< seqnum << ", lock id: " << lid << ")\n";
     pthread_mutex_lock(&release_acquire_mutex);
     
     std::map<lock_protocol::lockid_t,lock>::iterator it;
