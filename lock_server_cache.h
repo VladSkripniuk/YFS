@@ -155,8 +155,8 @@ protected:
     pthread_cond_t release_cond_var;
     pthread_cond_t revoke_cond_var;
 
-  thread_safe_queue<lock_protocol::lockid_t> retrier_queue; // push_back to safe_queue wakes up retrier
-  thread_safe_queue<lock_protocol::lockid_t> revoker_queue; // push_back to safe_queue wakes up revoker
+  thread_safe_queue<lock_protocol::lockid_t> retry_queue; // push_back to safe_queue wakes up retrier
+  thread_safe_queue<lock_protocol::lockid_t> revoke_queue; // push_back to safe_queue wakes up revoker
 
 };
 

@@ -42,11 +42,11 @@ void
 lock_server_cache::revoker() {
     while (1) {
         pthread_mutex_lock(&release_acquire_mutex);
-        while (revoker_queue.is_empty()) {
+        while (revoke_queue.is_empty()) {
             pthread_cond_wait(&revoke_cond_var, &release_acquire_mutex);
         }
         lock_protocol::lockid_t lid;
-        lid = revoker_queue.pop_front();
+        lid = revoke_queue.pop_front();
     
         std::cout << "revoke: " << locks[lid].owner << " " << lid << std::endl;
         
@@ -77,7 +77,7 @@ lock_server_cache::retryer()
   // are waiting for it.
   lock_protocol::lockid_t lid;
   while (1) {
-    lid = retrier_queue.pop_front();
+    lid = retry_queue.pop_front();
 
     std::cout << "lock_server_cache::retryer: " << lid << std::endl;
 
@@ -171,7 +171,7 @@ lock_server_cache::acquire(int clt, std::string client_socket, lock_protocol::se
     /// that may cause revoke coming to client before acquire lock_protocol::OK
     /// actually not, because we hold release_acquire_mutex
     if (!locks[lid].waiting_list.empty()) {
-      revoker_queue.push_back(lid);
+      revoke_queue.push_back(lid);
 
         //TODO: Isn't it useless?
         pthread_cond_signal(&revoke_cond_var);
@@ -181,7 +181,7 @@ lock_server_cache::acquire(int clt, std::string client_socket, lock_protocol::se
   else {
     locks[lid].add_to_waiting_list(client_socket, lid);
 
-    revoker_queue.push_back(lid);
+    revoke_queue.push_back(lid);
       pthread_cond_signal(&revoke_cond_var);
     std::cout << "acquire request retry: " << client_socket << " " << lid << std::endl;
 
@@ -217,7 +217,7 @@ lock_server_cache::release(int clt, std::string client_socket, lock_protocol::se
     it->second.release_lock();
     // std::cout << "lock_server_cache::release: pushed to retrier\n";
     
-    retrier_queue.push_back(lid);
+    retry_queue.push_back(lid);
   }
  
   pthread_mutex_unlock(&release_acquire_mutex);
