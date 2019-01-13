@@ -22,7 +22,7 @@ int lock_client_cache::last_port = 0;
 
 lock_client_cache::lock_client_cache(std::string xdst,
                                      class lock_release_user *_lu)
-: lock_client(xdst), lu(_lu)
+: lock_client(xdst), lu(_lu), last_seqnum(0)
 {
     srand(time(NULL)^last_port);
     rlock_port = ((rand()%32000) | (0x1 << 10));
@@ -51,10 +51,8 @@ struct delay_thread_struct {
 };
 
 static void *
-delaythread(void *x)
-{
+delaythread(void *x) {
     //wait here for 0.1 seconds
-    
     usleep(10000 + (rand() % 10000));
     
     delay_thread_struct *ptr = (delay_thread_struct *) x;
@@ -63,17 +61,13 @@ delaythread(void *x)
     return 0;
 }
 
-
+// This method should be a continuous loop, waiting to be notified of
+// freed locks that have been revoked by the server, so that it can
+// send a release RPC.
 void
-lock_client_cache::releaser()
-{
-    
-    // This method should be a continuous loop, waiting to be notified of
-    // freed locks that have been revoked by the server, so that it can
-    // send a release RPC.
-    
-    lock_protocol::lockid_t lid;
+lock_client_cache::releaser() {
     while (1) {
+        lock_protocol::lockid_t lid;
         // std::cout << "lock_client::releaser 1\n";
         lid = releaser_queue.pop_front();
         // std::cout << "lock_client::releaser 2\n";
@@ -201,8 +195,8 @@ lock_client_cache::accept_revoke_request(rlock_protocol::seqnum_t seqnum, lock_p
 
 rlock_protocol::status
 lock_client_cache::release_to_lock_server(rlock_protocol::seqnum_t seqnum, lock_protocol::lockid_t lid) {
-    std::cout << id << "lock_client_cache::release_to_lock_server" << std::endl;
     pthread_mutex_lock(&release_acquire_mutex);
+    std::cout << id << "lock_client_cache::release_to_lock_server" << std::endl;
     
     std::map<lock_protocol::lockid_t, cached_lock>::iterator it;
     

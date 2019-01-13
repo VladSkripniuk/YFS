@@ -126,26 +126,21 @@ protected:
 
   };
 
-  struct lock_client_info {
-  	int nacquire;
-  	rpcc *cl;
-
-  	lock_client_info(std::string client_socket) {
-  		nacquire = 0;
-
-  		sockaddr_in dstsock;
-      make_sockaddr(client_socket.c_str(), &dstsock);
-      cl = new rpcc(dstsock);
-      if (cl->bind() < 0) {
-        printf("lock_client: call bind\n");
-      }
-  	}
-    // lock_client_info() {
-    //   nacquire = 0;
-    // }
-
-
-  };
+    struct lock_client_info {
+        int nacquire;
+        rpcc *cl;
+        
+        lock_client_info(std::string client_socket) {
+            nacquire = 0;
+            
+            sockaddr_in dstsock;
+            make_sockaddr(client_socket.c_str(), &dstsock);
+            cl = new rpcc(dstsock);
+            if (cl->bind() < 0) {
+                printf("lock_client: call bind\n");
+            }
+        }
+    };
     
 protected:
     std::map<lock_protocol::lockid_t, lock> locks;
@@ -158,8 +153,6 @@ protected:
     pthread_cond_t retry_cond_var;
     pthread_cond_t revoke_cond_var;
     
-    
-
 };
 
 #endif
