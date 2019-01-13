@@ -126,10 +126,9 @@ lock_server_cache::acquire(int clt, std::string client_socket, lock_protocol::se
     }
     
     pthread_mutex_lock(&release_acquire_mutex);
-    std::cout << "acquire request (client socket: " << client_socket << ", seqnum: " << seqnum << ", lock id: " << lid << ")\n";
+    std::cout << "acquire request (client socket: " << client_socket << ", seqnum: " << seqnum << ", lock id: " << lid << std::endl;
     
-    std::map<lock_protocol::lockid_t, lock>::iterator it;
-    it = locks.find(lid);
+    std::map<lock_protocol::lockid_t, lock>::iterator it = locks.find(lid);
     
     // add new lock if it didn't exist before
     if (it == locks.end()) {
@@ -137,18 +136,16 @@ lock_server_cache::acquire(int clt, std::string client_socket, lock_protocol::se
         locks[lid] = new_lock;
         it = locks.find(lid);
     }
-    
-    
-    
+
     
     if (it->second.is_free()) {
-        auto it = lock_clients.find(client_socket);
+        auto lock_client = lock_clients.find(client_socket);
         
-        it->second.nacquire += 1;
-        locks[lid].grant_lock(client_socket, lid);
+        lock_client->second.nacquire += 1;
+        locks[lid].grant_lock(client_socket, seqnum);
         
         r = lock_protocol::OK;
-        std::cout << "acquire request successful: " << client_socket << " " << lid << std::endl;
+        std::cout << "acquire request successful: " << client_socket << ", seq.num: " << seqnum << ", lock id: " << lid << std::endl;
         
         /// in case someone else is also waiting on this lock right now, ask client to return this lock
         /// that may cause revoke coming to client before acquire lock_protocol::OK
@@ -160,9 +157,8 @@ lock_server_cache::acquire(int clt, std::string client_socket, lock_protocol::se
             pthread_cond_signal(&revoke_cond_var);
         }
         
-    }
-    else {
-        locks[lid].add_to_waiting_list(client_socket, lid);
+    } else {
+        locks[lid].add_to_waiting_list(client_socket, seqnum);
         
         revoke_queue.push_back(lid);
         pthread_cond_signal(&revoke_cond_var);
