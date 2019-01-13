@@ -134,7 +134,6 @@ public:
     lock_state = FREE;
     pthread_cond_init(&cond_var, NULL);
   }
-
 };
 
 class lock_client_cache : public lock_client {

@@ -88,11 +88,8 @@ lock_client_cache::releaser() {
 
 lock_protocol::status
 lock_client_cache::acquire(lock_protocol::lockid_t lid) {
-    pthread_mutex_lock(&release_acquire_mutex);
-    
     lock_protocol::status ret;
     
-    // TODO: Should be w/o mutex
     // If this is the first contact with the server,
     // I need to subscribe for async rpc responses
     if (last_seqnum == 0) {
@@ -102,59 +99,53 @@ lock_client_cache::acquire(lock_protocol::lockid_t lid) {
             return ret;
         }
     }
-    last_seqnum++;
     
-
+    pthread_mutex_lock(&release_acquire_mutex);
     
-    std::map<lock_protocol::lockid_t, cached_lock>::iterator it;
-    
-    it = cached_locks.find(lid);
-    
-    if (it == cached_locks.end()) {
+    auto lock = cached_locks.find(lid);
+    if (lock == cached_locks.end()) {
         cached_lock lock_;
         lock_.lock_state = cached_lock::NONE;
         cached_locks[lid] = lock_;
-        it = cached_locks.find(lid);
+        lock = cached_locks.find(lid);
     }
     
     while(1) {
-        if (it->second.lock_state == cached_lock::ACQUIRING
-            || it->second.lock_state == cached_lock::LOCKED
-            || it->second.lock_state == cached_lock::RELEASING) {
-            //lock_state might have changed to NONE and then to FREE while we were sleeping
-            pthread_cond_wait(&(it->second.cond_var), &release_acquire_mutex);
+        if (lock->second.lock_state == cached_lock::ACQUIRING
+            || lock->second.lock_state == cached_lock::LOCKED
+            || lock->second.lock_state == cached_lock::RELEASING) {
+            pthread_cond_wait(&(lock->second.cond_var), &release_acquire_mutex);
             continue;
-        } else if (it->second.lock_state == cached_lock::NONE) {
-            it->second.lock_state = cached_lock::ACQUIRING;
+        } else if (lock->second.lock_state == cached_lock::NONE) {
+            lock->second.lock_state = cached_lock::ACQUIRING;
             while (1) {
                 int r;
                 // should consider unlocking mutex here, though that
                 // leads to retrier signaling before we go to sleep
-                ret = cl->call(lock_protocol::acquire, cl->id(), id, last_seqnum, lid, r);
+                ret = cl->call(lock_protocol::acquire, cl->id(), id, ++last_seqnum, lid, r);
                 if (r == lock_protocol::OK) {
                     std::cout << id << " lock_client_cache::acquire: acquired " << lid << std::endl;
-                    it->second.lock_state = cached_lock::LOCKED;
+                    lock->second.lock_state = cached_lock::LOCKED;
+                    lock->second.seqnum = last_seqnum;
                     n_successes += 1;
                     std::cout << "N_SUCCESSES " << n_successes << std::endl;
                     break;
-                }
-                else {
+                } else {
                     n_failures += 1;
                     std::cout << "N_FAILURES " << n_failures << std::endl;
-                    std::cout << id << " lock_client_cache::acquire: retry later" << lid << std::endl;
+                    std::cout << id << " lock_client_cache::acquire: retry later " << lid << std::endl;
                 }
-                pthread_cond_wait(&(it->second.cond_var), &release_acquire_mutex);
+                pthread_cond_wait(&(lock->second.cond_var), &release_acquire_mutex);
             }
-        } else if (it->second.lock_state == cached_lock::FREE) {
-            it->second.lock_state = cached_lock::LOCKED;
-            std::cout << id << " lock_client_cache::acquire: acquired from cache" << lid << std::endl;
+        } else if (lock->second.lock_state == cached_lock::FREE) {
+            lock->second.lock_state = cached_lock::LOCKED;
+            std::cout << id << " lock_client_cache::acquire: acquired from cache " << lid << std::endl;
         } else {
             throw "Something is wrong with [it->second.lock_state]!";
         }
         break; 
     }
     pthread_mutex_unlock(&release_acquire_mutex);
-    
     return lock_protocol::OK;
 }
 
