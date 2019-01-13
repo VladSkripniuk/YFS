@@ -94,7 +94,7 @@ lock_client_cache::acquire(lock_protocol::lockid_t lid) {
     // I need to subscribe for async rpc responses
     if (last_seqnum == 0) {
         int r;
-        ret = cl->call(lock_protocol::subscribe, cl->id(), client_socket, last_seqnum, lid, r);
+        ret = cl->call(lock_protocol::subscribe, cl->id(), client_socket, r);
         if (ret != lock_protocol::OK) {
             return ret;
         }

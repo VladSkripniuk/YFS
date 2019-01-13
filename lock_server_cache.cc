@@ -113,13 +113,11 @@ lock_server_cache::retryer() {
     }
 }
 
-
 lock_protocol::status
 lock_server_cache::stat(int clt, lock_protocol::lockid_t lid, int &r) {
     r = nacquire;
     return lock_protocol::OK;
 }
-
 
 lock_protocol::status
 lock_server_cache::acquire(int clt, std::string client_socket, lock_protocol::seqnum_t seqnum, lock_protocol::lockid_t lid, int &r) {
@@ -180,7 +178,6 @@ lock_server_cache::acquire(int clt, std::string client_socket, lock_protocol::se
     return r;
 }
 
-
 lock_protocol::status
 lock_server_cache::release(int clt, std::string client_socket, lock_protocol::seqnum_t seqnum, lock_protocol::lockid_t lid, int &r) {
     
@@ -213,9 +210,9 @@ lock_server_cache::release(int clt, std::string client_socket, lock_protocol::se
 
 // TODO: delete useless params
 lock_protocol::status
-lock_server_cache::subscribe(int clt, std::string client_socket, lock_protocol::seqnum_t seqnum, lock_protocol::lockid_t lid, int &r) {
+lock_server_cache::subscribe(int clt, std::string client_socket, int &r) {
     pthread_mutex_lock(&release_acquire_mutex);
-    std::cout << "subscribe request (clt " << client_socket << ", seqnum " << seqnum << ", lock id: " << lid << ")\n";
+    std::cout << "subscribe request (clt: " << client_socket << ")\n";
     
     if (lock_clients.find(client_socket) != lock_clients.end()) {
         throw std::runtime_error("Client tries to subscribe twice.");
