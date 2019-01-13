@@ -97,26 +97,26 @@ lock_client_cache::acquire(lock_protocol::lockid_t lid) {
     pthread_mutex_lock(&release_acquire_mutex);
     // seqnum += 1;
     
-    std::map<lock_protocol::lockid_t, lock>::iterator it;
+    std::map<lock_protocol::lockid_t, cached_lock>::iterator it;
     
-    it = locks.find(lid);
+    it = cached_locks.find(lid);
     
-    if (it == locks.end()) {
-        lock lock_;
-        lock_.lock_state = lock::NONE;
-        locks[lid] = lock_;
-        it = locks.find(lid);
+    if (it == cached_locks.end()) {
+        cached_lock lock_;
+        lock_.lock_state = cached_lock::NONE;
+        cached_locks[lid] = lock_;
+        it = cached_locks.find(lid);
     }
     
     while(1) {
-        if (it->second.lock_state == lock::ACQUIRING
-            || it->second.lock_state == lock::LOCKED
-            || it->second.lock_state == lock::RELEASING) {
+        if (it->second.lock_state == cached_lock::ACQUIRING
+            || it->second.lock_state == cached_lock::LOCKED
+            || it->second.lock_state == cached_lock::RELEASING) {
             //lock_state might have changed to NONE and then to FREE while we were sleeping
             pthread_cond_wait(&(it->second.cond_var), &release_acquire_mutex);
             continue;
-        } else if (it->second.lock_state == lock::NONE) {
-            it->second.lock_state = lock::ACQUIRING;
+        } else if (it->second.lock_state == cached_lock::NONE) {
+            it->second.lock_state = cached_lock::ACQUIRING;
             while (1) {
                 int ret;
                 int r;
@@ -125,7 +125,7 @@ lock_client_cache::acquire(lock_protocol::lockid_t lid) {
                 ret = cl->call(lock_protocol::acquire, cl->id(), id, seqnum, lid, r);
                 if (r == lock_protocol::OK) {
                     std::cout << id << " lock_client_cache::acquire: acquired " << lid << std::endl;
-                    it->second.lock_state = lock::LOCKED;
+                    it->second.lock_state = cached_lock::LOCKED;
                     n_successes += 1;
                     std::cout << "N_SUCCESSES " << n_successes << std::endl;
                     break;
@@ -137,8 +137,8 @@ lock_client_cache::acquire(lock_protocol::lockid_t lid) {
                 }
                 pthread_cond_wait(&(it->second.cond_var), &release_acquire_mutex);
             }
-        } else if (it->second.lock_state == lock::FREE) {
-            it->second.lock_state = lock::LOCKED;
+        } else if (it->second.lock_state == cached_lock::FREE) {
+            it->second.lock_state = cached_lock::LOCKED;
             std::cout << id << " lock_client_cache::acquire: acquired from cache" << lid << std::endl;
         } else {
             throw "Something is wrong with [it->second.lock_state]!";
@@ -157,8 +157,8 @@ lock_client_cache::release(lock_protocol::lockid_t lid) {
     
     std::cout << id <<  " lock_client_cache::release: released to cache " << lid << std::endl;
     
-    locks[lid].lock_state = lock::FREE;
-    pthread_cond_broadcast(&locks[lid].cond_var);
+    cached_locks[lid].lock_state = cached_lock::FREE;
+    pthread_cond_broadcast(&cached_locks[lid].cond_var);
     
     pthread_mutex_unlock(&release_acquire_mutex);
     
@@ -172,7 +172,7 @@ lock_client_cache::accept_retry_request(rlock_protocol::seqnum_t seqnum, lock_pr
     
     // without this mutex we signal before acquiring thread goes to sleep
     pthread_mutex_lock(&release_acquire_mutex);
-    pthread_cond_broadcast(&locks[lid].cond_var);
+    pthread_cond_broadcast(&cached_locks[lid].cond_var);
     pthread_mutex_unlock(&release_acquire_mutex);
     return rlock_protocol::OK;
 }
@@ -190,17 +190,18 @@ lock_client_cache::release_to_lock_server(rlock_protocol::seqnum_t seqnum, lock_
     std::cout << id << "lock_client_cache::release_to_lock_server" << std::endl;
     pthread_mutex_lock(&release_acquire_mutex);
     
-    std::map<lock_protocol::lockid_t, lock>::iterator it;
+    std::map<lock_protocol::lockid_t, cached_lock>::iterator it;
     
-    it = locks.find(lid);
+    it = cached_locks.find(lid);
     
     while(1) {
-        if (it->second.lock_state == lock::ACQUIRING || it->second.lock_state == lock::LOCKED) {
+        if (it->second.lock_state == cached_lock::ACQUIRING
+            || it->second.lock_state == cached_lock::LOCKED) {
             pthread_cond_wait(&(it->second.cond_var), &release_acquire_mutex);
             continue;
-        } else if (it->second.lock_state == lock::FREE) {
+        } else if (it->second.lock_state == cached_lock::FREE) {
             std::cout << id << "lock_client_cache::release_to_lock_server::FREE" << std::endl;
-            it->second.lock_state = lock::RELEASING;
+            it->second.lock_state = cached_lock::RELEASING;
             
             pthread_mutex_unlock(&release_acquire_mutex);
             
@@ -217,11 +218,11 @@ lock_client_cache::release_to_lock_server(rlock_protocol::seqnum_t seqnum, lock_
             pthread_mutex_lock(&release_acquire_mutex);
             
             std::cout << id << " lock_client_cache::release_to_lock_server: released seqnum " << seqnum << " lid " << lid << std::endl;
-            it->second.lock_state = lock::NONE;
-            pthread_cond_broadcast(&locks[lid].cond_var);
+            it->second.lock_state = cached_lock::NONE;
+            pthread_cond_broadcast(&cached_locks[lid].cond_var);
             
-        } else if (it->second.lock_state == lock::NONE
-                   || it->second.lock_state == lock::RELEASING) {
+        } else if (it->second.lock_state == cached_lock::NONE
+                   || it->second.lock_state == cached_lock::RELEASING) {
             // do nothing, it was already released, might cause problems if reordering
         } else {
             throw "Something is wrong with [it->second.lock_state]!";

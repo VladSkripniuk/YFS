@@ -122,7 +122,7 @@ public:
 };
 
 
-class lock {
+class cached_lock {
 public:
   enum xxstatus { NONE, FREE, LOCKED, ACQUIRING, RELEASING };
 
@@ -130,7 +130,7 @@ public:
   pthread_cond_t cond_var;
   lock_protocol::seqnum_t seqnum = 0; // seqnum of last acquire
 
-  lock() {
+  cached_lock() {
     lock_state = FREE;
     pthread_cond_init(&cond_var, NULL);
   }
@@ -146,7 +146,8 @@ private:
 
   lock_protocol::seqnum_t seqnum = 0;
 
-  std::map<lock_protocol::lockid_t, lock> locks;
+  std::map<lock_protocol::lockid_t, cached_lock> cached_locks;
+    
   pthread_mutex_t release_acquire_mutex; // this mutex protects locks and seqnum
 
   thread_safe_queue<lock_protocol::lockid_t> releaser_queue; // push_back to releaser_queue wakes up releaser
