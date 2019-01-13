@@ -158,7 +158,7 @@ private:
   rlock_protocol::status accept_revoke_request(rlock_protocol::seqnum_t seqnum, lock_protocol::lockid_t lid, int &r);
   
 public:
-  std::string id;
+  std::string client_socket;
   int n_successes = 0;
   int n_failures = 0;
 

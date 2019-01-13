@@ -31,7 +31,7 @@ lock_client_cache::lock_client_cache(std::string xdst,
     hname = "127.0.0.1";
     std::ostringstream host;
     host << hname << ":" << rlock_port;
-    id = host.str();
+    client_socket = host.str();
     last_port = rlock_port;
     rpcs *rlsrpc = new rpcs(rlock_port);
     /* register RPC handlers with rlsrpc */
@@ -94,7 +94,7 @@ lock_client_cache::acquire(lock_protocol::lockid_t lid) {
     // I need to subscribe for async rpc responses
     if (last_seqnum == 0) {
         int r;
-        ret = cl->call(lock_protocol::subscribe, cl->id(), id, last_seqnum, lid, r);
+        ret = cl->call(lock_protocol::subscribe, cl->id(), client_socket, last_seqnum, lid, r);
         if (ret != lock_protocol::OK) {
             return ret;
         }
@@ -122,9 +122,9 @@ lock_client_cache::acquire(lock_protocol::lockid_t lid) {
                 int r;
                 // should consider unlocking mutex here, though that
                 // leads to retrier signaling before we go to sleep
-                ret = cl->call(lock_protocol::acquire, cl->id(), id, ++last_seqnum, lid, r);
+                ret = cl->call(lock_protocol::acquire, cl->id(), client_socket, ++last_seqnum, lid, r);
                 if (r == lock_protocol::OK) {
-                    std::cout << id << " lock_client_cache::acquire: acquired " << lid << std::endl;
+                    std::cout << client_socket << " lock_client_cache::acquire: acquired " << lid << std::endl;
                     lock->second.lock_state = cached_lock::LOCKED;
                     lock->second.seqnum = last_seqnum;
                     n_successes += 1;
@@ -133,13 +133,13 @@ lock_client_cache::acquire(lock_protocol::lockid_t lid) {
                 } else {
                     n_failures += 1;
                     std::cout << "N_FAILURES " << n_failures << std::endl;
-                    std::cout << id << " lock_client_cache::acquire: retry later " << lid << std::endl;
+                    std::cout << client_socket << " lock_client_cache::acquire: retry later " << lid << std::endl;
                 }
                 pthread_cond_wait(&(lock->second.cond_var), &release_acquire_mutex);
             }
         } else if (lock->second.lock_state == cached_lock::FREE) {
             lock->second.lock_state = cached_lock::LOCKED;
-            std::cout << id << " lock_client_cache::acquire: acquired from cache " << lid << std::endl;
+            std::cout << client_socket << " lock_client_cache::acquire: acquired from cache " << lid << std::endl;
         } else {
             throw "Something is wrong with [it->second.lock_state]!";
         }
@@ -154,7 +154,7 @@ lock_client_cache::release(lock_protocol::lockid_t lid) {
     
     pthread_mutex_lock(&release_acquire_mutex);
     
-    std::cout << id <<  " lock_client_cache::release: released to cache " << lid << std::endl;
+    std::cout << client_socket <<  " lock_client_cache::release: released to cache " << lid << std::endl;
     
     cached_locks[lid].lock_state = cached_lock::FREE;
     pthread_cond_broadcast(&cached_locks[lid].cond_var);
@@ -167,7 +167,7 @@ lock_client_cache::release(lock_protocol::lockid_t lid) {
 rlock_protocol::status
 lock_client_cache::accept_retry_request(rlock_protocol::seqnum_t seqnum, lock_protocol::lockid_t lid, int &r)
 {
-    std::cout << id << " can retry now: seqnum " << seqnum << " lid " << lid << std::endl;
+    std::cout << client_socket << " can retry now: seqnum " << seqnum << " lid " << lid << std::endl;
     
     // without this mutex we signal before acquiring thread goes to sleep
     pthread_mutex_lock(&release_acquire_mutex);
@@ -187,7 +187,7 @@ lock_client_cache::accept_revoke_request(rlock_protocol::seqnum_t seqnum, lock_p
 rlock_protocol::status
 lock_client_cache::release_to_lock_server(rlock_protocol::seqnum_t seqnum, lock_protocol::lockid_t lid) {
     pthread_mutex_lock(&release_acquire_mutex);
-    std::cout << id << "lock_client_cache::release_to_lock_server" << std::endl;
+    std::cout << client_socket << "lock_client_cache::release_to_lock_server" << std::endl;
     
     std::map<lock_protocol::lockid_t, cached_lock>::iterator it;
     
@@ -199,7 +199,7 @@ lock_client_cache::release_to_lock_server(rlock_protocol::seqnum_t seqnum, lock_
             pthread_cond_wait(&(it->second.cond_var), &release_acquire_mutex);
             continue;
         } else if (it->second.lock_state == cached_lock::FREE) {
-            std::cout << id << "lock_client_cache::release_to_lock_server::FREE" << std::endl;
+            std::cout << client_socket << "lock_client_cache::release_to_lock_server::FREE" << std::endl;
             it->second.lock_state = cached_lock::RELEASING;
             
             pthread_mutex_unlock(&release_acquire_mutex);
@@ -210,13 +210,14 @@ lock_client_cache::release_to_lock_server(rlock_protocol::seqnum_t seqnum, lock_
             
             int ret;
             int r;
-            ret = cl->call(lock_protocol::release, cl->id(), id, seqnum, lid, r);
+            ret = cl->call(lock_protocol::release, cl->id(), client_socket, seqnum, lid, r);
             
             assert (ret == 0);
             
             pthread_mutex_lock(&release_acquire_mutex);
             
-            std::cout << id << " lock_client_cache::release_to_lock_server: released seqnum " << seqnum << " lid " << lid << std::endl;
+            std::cout << client_socket << " lock_client_cache::release_to_lock_server: released seqnum "
+                    << seqnum << " lid " << lid << std::endl;
             it->second.lock_state = cached_lock::NONE;
             pthread_cond_broadcast(&cached_locks[lid].cond_var);
             
