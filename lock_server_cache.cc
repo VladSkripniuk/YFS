@@ -24,6 +24,7 @@ retrythread(void *x) {
 lock_server_cache::lock_server_cache() {
     pthread_mutex_init(&release_acquire_mutex, NULL);
     pthread_cond_init(&revoke_cond_var, NULL);
+    pthread_cond_init(&retry_cond_var, NULL);
     
     pthread_t th;
     int r = pthread_create(&th, NULL, &revokethread, (void *) this);
@@ -45,7 +46,7 @@ lock_server_cache::revoker() {
         lock_protocol::lockid_t lid;
         lid = revoke_queue.pop_front();
         
-        std::cout << "revoke: " << locks[lid].owner << " " << lid << std::endl;
+        std::cout << "lock_server_cache::revoker: " << locks[lid].owner << " " << lid << std::endl;
         
         auto client = lock_clients.find(locks[lid].owner);
         if (client == lock_clients.end())
@@ -69,57 +70,47 @@ lock_server_cache::revoker() {
 // are waiting for it.
 void
 lock_server_cache::retryer() {
-
-    lock_protocol::lockid_t lid;
     while (1) {
-        lid = retry_queue.pop_front();
-        
-        std::cout << "lock_server_cache::retryer: " << lid << std::endl;
-        
-        // TODO: send retry RPC
         pthread_mutex_lock(&release_acquire_mutex);
-        n_retries += 1;
+        while (retry_queue.is_empty()) {
+            pthread_cond_wait(&retry_cond_var, &release_acquire_mutex);
+        }
+        lock_protocol::lockid_t lid;
+        lid = retry_queue.pop_front();
+        n_retries++;
+        
+        std::cout << "lock_server_cache::retryer: " << locks[lid].owner << " " << lid << std::endl;
         std::cout << "RETRIES SENT " << n_retries << std::endl;
-        
-        // std::list<lock_client_id_and_seqnum> waiting_list;
-        // waiting_list = locks[lid].get_waiting_list_and_clear_it();
-        
         std::cout << "waiting list\n";
         for (auto it = locks[lid].waiting_list.begin(); it != locks[lid].waiting_list.end(); it++) {
             std::cout << "\t" << it->client_id << std::endl;
         }
-        // std::cout << "waiting list copied\n";
-        // pthread_mutex_unlock(&release_acquire_mutex);
+    
+        if (locks[lid].waiting_list.empty()){
+            pthread_mutex_unlock(&release_acquire_mutex);
+            continue;
+        }
         
-        std::string client_id;
-        rlock_protocol::seqnum_t seqnum;
+        auto client_and_seqnum = *(locks[lid].waiting_list.begin());
+        locks[lid].waiting_list.pop_front();
+        
+        auto lock_client = lock_clients.find(client_and_seqnum.client_id);
+        if(lock_client == lock_clients.end())
+            throw std::runtime_error("There is no such a client in waiting list. ");
+    
+        pthread_mutex_unlock(&release_acquire_mutex);
         
         rpcc *cl;
+        cl = lock_client->second.cl;
         
-        
-        if (!locks[lid].waiting_list.empty()) {
-            lock_client_id_and_seqnum t = *(locks[lid].waiting_list.begin());
-            locks[lid].waiting_list.pop_front();
-            
-            // pthread_mutex_lock(&release_acquire_mutex);
-            auto it = lock_clients.find(t.client_id);
-            assert (it != lock_clients.end());
-            cl = it->second.cl;
-            pthread_mutex_unlock(&release_acquire_mutex);
-            int r;
-            int ret = cl->call(rlock_protocol::retry, seqnum, lid, r);
-            
-            std::cout << "retrier call " << ret << " " << r << std::endl;
-            
-            std::cout << "retrier: retry sent to " << t.client_id << " " << lid << std::endl;
-            assert (ret == rlock_protocol::OK);
+        int r;
+        auto ret = cl->call(rlock_protocol::retry, client_and_seqnum.seqnum, lid, r);
+        if(ret != rlock_protocol::OK) {
+            throw std::runtime_error("[rlock_protocol::retry] != OK");
         }
-        else{
-            pthread_mutex_unlock(&release_acquire_mutex);
-        }
-        
+        std::cout << "retrier call " << ret << " " << r << std::endl;
+        std::cout << "retrier: retry sent to " << client_and_seqnum.client_id << " " << lid << std::endl;
     }
-    
 }
 
 
@@ -212,6 +203,7 @@ lock_server_cache::release(int clt, std::string client_socket, lock_protocol::se
         // std::cout << "lock_server_cache::release: pushed to retrier\n";
         
         retry_queue.push_back(lid);
+        pthread_cond_signal(&retry_cond_var);
     }
     
     pthread_mutex_unlock(&release_acquire_mutex);
@@ -229,7 +221,7 @@ lock_server_cache::subscribe(int clt, std::string client_socket, lock_protocol::
         throw std::runtime_error("Client tries to subscribe twice.");
     }
     
-    // add new lock_client
+    // Add new lock_client
     lock_client_info new_lock_client_info(client_socket);
     lock_clients.insert(std::pair<std::string, lock_client_info>(client_socket, new_lock_client_info));
     
