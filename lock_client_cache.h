@@ -129,9 +129,11 @@ public:
   int lock_state;
   pthread_cond_t cond_var;
   lock_protocol::seqnum_t seqnum = 0; // seqnum of last acquire
+    bool is_used;
 
   cached_lock() {
     lock_state = FREE;
+      is_used = false;
     pthread_cond_init(&cond_var, NULL);
   }
 };
@@ -149,7 +151,9 @@ private:
     
   pthread_mutex_t release_acquire_mutex; // this mutex protects locks and seqnum
 
-  thread_safe_queue<lock_protocol::lockid_t> releaser_queue; // push_back to releaser_queue wakes up releaser
+    // lock id <-> seq. num in the revoke request
+    // push_back to releaser_queue wakes up releaser
+    thread_safe_queue<std::pair<lock_protocol::lockid_t, rlock_protocol::seqnum_t>> releaser_queue;
 
 public:
   rlock_protocol::status release_to_lock_server(lock_protocol::lockid_t lid);

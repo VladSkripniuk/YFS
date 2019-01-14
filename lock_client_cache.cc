@@ -67,15 +67,31 @@ delaythread(void *x) {
 void
 lock_client_cache::releaser() {
     while (1) {
-        lock_protocol::lockid_t lid;
-        // std::cout << "lock_client::releaser 1\n";
-        lid = releaser_queue.pop_front();
-        // std::cout << "lock_client::releaser 2\n";
-        // send release
+        std::pair<lock_protocol::lockid_t, rlock_protocol::seqnum_t> release_request = releaser_queue.pop_front();
+        std::cout << "lock_client_cache::releaser;"
+                  << " lock id: " << release_request.first
+                  << " seq.num: " << release_request.second << std::endl;
+        // Useless (for now)
+        auto lock = cached_locks.find(release_request.first);
+        if (lock == cached_locks.end()) {
+            throw std::runtime_error("There is no lock. ");
+        }
+        
+        if (lock->second.seqnum < release_request.second) {
+            std::cout << "lock_client_cache::releaser; " << lock->second.seqnum << "<" << release_request.second << std::endl;
+            //continue; // Doesn't work
+        }
+        while (!lock->second.is_used) {
+            usleep(10000 + (rand() % 10000));
+        }
+        
+        //usleep(10000 + (rand() % 10000));
+//        release_to_lock_server(release_request.first);
+        
         
         delay_thread_struct *t = new delay_thread_struct();
         t->cc = this;
-        t->lid = lid;
+        t->lid = release_request.first;
         
         pthread_t th;
         int r = pthread_create(&th, NULL, &delaythread, (void *) t);
@@ -127,6 +143,7 @@ lock_client_cache::acquire(lock_protocol::lockid_t lid) {
                     std::cout << client_socket << " lock_client_cache::acquire: acquired " << lid << std::endl;
                     lock->second.lock_state = cached_lock::LOCKED;
                     lock->second.seqnum = last_seqnum;
+                    lock->second.is_used = true; 
                     n_successes += 1;
                     std::cout << "N_SUCCESSES " << n_successes << std::endl;
                     break;
@@ -177,10 +194,9 @@ lock_client_cache::accept_retry_request(rlock_protocol::seqnum_t seqnum, lock_pr
 }
 
 rlock_protocol::status
-lock_client_cache::accept_revoke_request(rlock_protocol::seqnum_t seqnum, lock_protocol::lockid_t lid, int &r)
-{
-    releaser_queue.push_back(lid);
-    
+lock_client_cache::accept_revoke_request(rlock_protocol::seqnum_t seqnum, lock_protocol::lockid_t lid, int &r) {
+    std::cout << "lock_client_cache::accept_revoke_request; lock in: " << lid << ", seq.num: " << seqnum << std::endl;
+    releaser_queue.push_back(std::pair<lock_protocol::lockid_t,rlock_protocol::seqnum_t>(lid, seqnum));
     return rlock_protocol::OK;
 }
 
@@ -208,7 +224,9 @@ lock_client_cache::release_to_lock_server(lock_protocol::lockid_t lid) {
             
             // flush to extent
             lu->dorelease(lid);
-            //usleep(100000);
+            
+            // TODO: useless?
+            usleep(100000);
             
             int r;
             auto ret = cl->call(lock_protocol::release, cl->id(), client_socket, lock->second.seqnum, lid, r);
