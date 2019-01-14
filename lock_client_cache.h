@@ -21,16 +21,15 @@ class lock_release_user {
 
 
 class lock_release_user_derived : public lock_release_user {
- public:
-  extent_client *ec;
-  lock_release_user_derived(extent_client *ec_) {
-    ec = ec_;
-  }
-  virtual void dorelease(lock_protocol::lockid_t lockid) {
-      std::cout << "hello" << lockid << std::endl;
-    ec->flush(lockid);
-  }
-  virtual ~lock_release_user_derived() {};
+public:
+    extent_client *ec;
+    lock_release_user_derived(extent_client *ec_) {
+        ec = ec_;
+    }
+    virtual void dorelease(lock_protocol::lockid_t lockid) {
+        ec->flush(lockid);
+    }
+    virtual ~lock_release_user_derived() {};
 };
 
 
@@ -149,11 +148,17 @@ private:
 
   std::map<lock_protocol::lockid_t, cached_lock> cached_locks;
     
-  pthread_mutex_t release_acquire_mutex; // this mutex protects locks and seqnum
-
+    // TODO: delete seq.num?
     // lock id <-> seq. num in the revoke request
     // push_back to releaser_queue wakes up releaser
     thread_safe_queue<std::pair<lock_protocol::lockid_t, rlock_protocol::seqnum_t>> releaser_queue;
+    
+    // Maps lock_id to the latest seq.num received from the accept_retry_request function
+    std::map<lock_protocol::lockid_t, rlock_protocol::seqnum_t> lockid_to_retry_seqnum_map;
+    
+  pthread_mutex_t release_acquire_mutex; // this mutex protects locks and seqnum
+
+
 
 public:
   rlock_protocol::status release_to_lock_server(lock_protocol::lockid_t lid);

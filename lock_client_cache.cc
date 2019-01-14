@@ -136,23 +136,34 @@ lock_client_cache::acquire(lock_protocol::lockid_t lid) {
             lock->second.lock_state = cached_lock::ACQUIRING;
             while (1) {
                 int r;
-                // should consider unlocking mutex here, though that
-                // leads to retrier signaling before we go to sleep
-                ret = cl->call(lock_protocol::acquire, cl->id(), client_socket, ++last_seqnum, lid, r);
+                lock->second.seqnum = ++last_seqnum;
+                
+                pthread_mutex_unlock(&release_acquire_mutex);
+                ret = cl->call(lock_protocol::acquire, cl->id(), client_socket, lock->second.seqnum, lid, r);
+                pthread_mutex_lock(&release_acquire_mutex);
+                
                 if (r == lock_protocol::OK) {
+                    lock->second.is_used = true; // TODO: useless?
+                    n_successes++;
                     std::cout << client_socket << " lock_client_cache::acquire: acquired " << lid << std::endl;
-                    lock->second.lock_state = cached_lock::LOCKED;
-                    lock->second.seqnum = last_seqnum;
-                    lock->second.is_used = true; 
-                    n_successes += 1;
                     std::cout << "N_SUCCESSES " << n_successes << std::endl;
                     break;
                 } else {
-                    n_failures += 1;
-                    std::cout << "N_FAILURES " << n_failures << std::endl;
+                    n_failures++;
                     std::cout << client_socket << " lock_client_cache::acquire: retry later " << lid << std::endl;
+                    std::cout << "N_FAILURES " << n_failures << std::endl;
+
+                    while (1) {
+                        auto lockid_and_seqnum = lockid_to_retry_seqnum_map.find(lid);
+                        std::cout << "Waiting for the retry request: "
+                                  << lockid_and_seqnum->second << " < " << lock->second.seqnum << std::endl;
+                        if (lockid_and_seqnum != lockid_to_retry_seqnum_map.end()
+                            && lockid_and_seqnum->second == lock->second.seqnum) {
+                            break;
+                        }
+                        pthread_cond_wait(&(lock->second.cond_var), &release_acquire_mutex);
+                    }
                 }
-                pthread_cond_wait(&(lock->second.cond_var), &release_acquire_mutex);
             }
         } else if (lock->second.lock_state == cached_lock::FREE) {
             lock->second.lock_state = cached_lock::LOCKED;
@@ -182,12 +193,13 @@ lock_client_cache::release(lock_protocol::lockid_t lid) {
 }
 
 rlock_protocol::status
-lock_client_cache::accept_retry_request(rlock_protocol::seqnum_t seqnum, lock_protocol::lockid_t lid, int &r)
-{
-    std::cout << client_socket << " can retry now: seqnum " << seqnum << " lid " << lid << std::endl;
+lock_client_cache::accept_retry_request(rlock_protocol::seqnum_t seqnum, lock_protocol::lockid_t lid, int &r) {
     
     // without this mutex we signal before acquiring thread goes to sleep
     pthread_mutex_lock(&release_acquire_mutex);
+    std::cout << client_socket << " can retry now: lock id: " << lid << ", seq.num: " << seqnum << std::endl;
+    lockid_to_retry_seqnum_map[lid] = seqnum;
+    
     pthread_cond_broadcast(&cached_locks[lid].cond_var);
     pthread_mutex_unlock(&release_acquire_mutex);
     return rlock_protocol::OK;
@@ -223,6 +235,7 @@ lock_client_cache::release_to_lock_server(lock_protocol::lockid_t lid) {
             pthread_mutex_unlock(&release_acquire_mutex);
             
             // flush to extent
+            std::cout << "lu->dorelease(lid): lu = " << lu << std::endl;
             lu->dorelease(lid);
             
             // TODO: useless?
