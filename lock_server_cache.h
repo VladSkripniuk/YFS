@@ -152,8 +152,6 @@ protected:
     thread_safe_queue<lock_protocol::lockid_t> revoke_queue; // push_back to safe_queue wakes up revoker
     
     pthread_mutex_t release_acquire_mutex; // this mutex protects locks, lock_clients and most importantly, nacquire
-    pthread_cond_t retry_cond_var;
-    pthread_cond_t revoke_cond_var;
     
 };
 

@@ -23,8 +23,6 @@ retrythread(void *x) {
 
 lock_server_cache::lock_server_cache() {
     pthread_mutex_init(&release_acquire_mutex, NULL);
-    pthread_cond_init(&revoke_cond_var, NULL);
-    pthread_cond_init(&retry_cond_var, NULL);
     
     pthread_t th;
     int r = pthread_create(&th, NULL, &revokethread, (void *) this);
@@ -39,12 +37,8 @@ lock_server_cache::lock_server_cache() {
 void
 lock_server_cache::revoker() {
     while (1) {
+        lock_protocol::lockid_t lid = revoke_queue.pop_front();
         pthread_mutex_lock(&release_acquire_mutex);
-        while (revoke_queue.is_empty()) {
-            pthread_cond_wait(&revoke_cond_var, &release_acquire_mutex);
-        }
-        lock_protocol::lockid_t lid;
-        lid = revoke_queue.pop_front();
         
         std::cout << "lock_server_cache::revoker: " << locks[lid].owner << " " << lid << std::endl;
         
@@ -71,12 +65,10 @@ lock_server_cache::revoker() {
 void
 lock_server_cache::retryer() {
     while (1) {
+        lock_protocol::lockid_t lid = retry_queue.pop_front();
         pthread_mutex_lock(&release_acquire_mutex);
-        while (retry_queue.is_empty()) {
-            pthread_cond_wait(&retry_cond_var, &release_acquire_mutex);
-        }
-        lock_protocol::lockid_t lid;
-        lid = retry_queue.pop_front();
+
+        
         n_retries++;
         
         std::cout << "lock_server_cache::retryer: " << locks[lid].owner << " " << lid << std::endl;
@@ -152,16 +144,12 @@ lock_server_cache::acquire(int clt, std::string client_socket, lock_protocol::se
         /// actually not, because we hold release_acquire_mutex
         if (!locks[lid].waiting_list.empty()) {
             revoke_queue.push_back(lid);
-            
-            //TODO: Isn't it useless?
-            pthread_cond_signal(&revoke_cond_var);
         }
         
     } else {
         locks[lid].add_to_waiting_list(client_socket, seqnum);
         
         revoke_queue.push_back(lid);
-        pthread_cond_signal(&revoke_cond_var);
         std::cout << "acquire request retry: " << client_socket << " " << lid << std::endl;
         
         r = lock_protocol::RETRY;
@@ -191,12 +179,8 @@ lock_server_cache::release(int clt, std::string client_socket, lock_protocol::se
         if (it1 != lock_clients.end()) {
             it1->second.nacquire -= 1;
         }
-        
         it->second.release_lock();
-        // std::cout << "lock_server_cache::release: pushed to retrier\n";
-        
         retry_queue.push_back(lid);
-        pthread_cond_signal(&retry_cond_var);
     }
     
     pthread_mutex_unlock(&release_acquire_mutex);
