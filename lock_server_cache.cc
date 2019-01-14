@@ -168,10 +168,13 @@ lock_server_cache::release(int clt, std::string client_socket, lock_protocol::se
     pthread_mutex_lock(&release_acquire_mutex);
     std::cout << "release request (client socket: " << client_socket << ", seqnum: "<< seqnum << ", lock id: " << lid << ")\n";
     
-    std::map<lock_protocol::lockid_t,lock>::iterator it;
-    it = locks.find(lid);
+    std::map<lock_protocol::lockid_t,lock>::iterator it = locks.find(lid);
     
-    if ((it != locks.end()) && (!it->second.is_free())) {
+    if (it == locks.end()) {
+        throw std::runtime_error("Someone tries to release a lock that nobody holds. ");
+    }
+    
+    if (!it->second.is_free()) {
         nacquire--;
         
         std::map<std::string, lock_client>::iterator it1;
