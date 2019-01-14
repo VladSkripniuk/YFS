@@ -113,8 +113,13 @@ lock_server_cache::stat(int clt, lock_protocol::lockid_t lid, int &r) {
 
 lock_protocol::status
 lock_server_cache::acquire(int clt, std::string client_socket, lock_protocol::seqnum_t seqnum, lock_protocol::lockid_t lid, int &r) {
+   
+    // TODO: looks like a better choice
+    //if (lock_clients.find(client_socket) == lock_clients.end()) {
+    //    throw std::runtime_error("Unsubscribed client tries to acquire lock.");
+    //}
     if (lock_clients.find(client_socket) == lock_clients.end()) {
-        throw std::runtime_error("Unsubscribed client tries to acquire lock.");
+        subscribe(clt, client_socket, r);
     }
     
     pthread_mutex_lock(&release_acquire_mutex);
@@ -177,10 +182,9 @@ lock_server_cache::release(int clt, std::string client_socket, lock_protocol::se
     if (!it->second.is_free()) {
         nacquire--;
         
-        std::map<std::string, lock_client>::iterator it1;
-        it1 = lock_clients.find(client_socket);
-        if (it1 != lock_clients.end()) {
-            it1->second.nacquire -= 1;
+        std::map<std::string, lock_client>::iterator lock_client = lock_clients.find(client_socket);
+        if (lock_client != lock_clients.end()) {
+            lock_client->second.nacquire -= 1;
         }
         it->second.release_lock();
         retry_queue.push_back(lid);
