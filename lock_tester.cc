@@ -181,6 +181,7 @@ main(int argc, char *argv[])
       test1();
     }
 
+    
     if(!test || test == 2){
       // test2
       for (int i = 0; i < nt; i++) {
