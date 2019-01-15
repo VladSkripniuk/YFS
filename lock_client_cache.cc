@@ -135,6 +135,7 @@ lock_client_cache::acquire(lock_protocol::lockid_t lid) {
                 pthread_mutex_lock(&release_acquire_mutex);
                 
                 if (r == lock_protocol::OK) {
+                    lock->second.lock_state = cached_lock::LOCKED;
                     n_successes++;
                     std::cout << client_socket << " lock_client_cache::acquire: acquired " << lid << std::endl;
                     std::cout << "N_SUCCESSES " << n_successes << std::endl;
@@ -230,7 +231,7 @@ lock_client_cache::release_to_lock_server(lock_protocol::lockid_t lid) {
             lu->dorelease(lid);
             
             // TODO: useless?
-            usleep(100000);
+            // usleep(100000);
             
             int r;
             auto ret = cl->call(lock_protocol::release, cl->id(), client_socket, lock->second.seqnum, lid, r);
