@@ -128,11 +128,9 @@ public:
   int lock_state;
   pthread_cond_t cond_var;
   lock_protocol::seqnum_t seqnum = 0; // seqnum of last acquire
-    bool is_used;
 
   cached_lock() {
     lock_state = FREE;
-      is_used = false;
     pthread_cond_init(&cond_var, NULL);
   }
 };

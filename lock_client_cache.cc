@@ -81,13 +81,6 @@ lock_client_cache::releaser() {
             std::cout << "lock_client_cache::releaser; " << lock->second.seqnum << "<" << release_request.second << std::endl;
             //continue; // Doesn't work
         }
-        while (!lock->second.is_used) {
-            usleep(10000 + (rand() % 10000));
-        }
-        
-        //usleep(10000 + (rand() % 10000));
-//        release_to_lock_server(release_request.first);
-        
         
         delay_thread_struct *t = new delay_thread_struct();
         t->cc = this;
@@ -143,7 +136,6 @@ lock_client_cache::acquire(lock_protocol::lockid_t lid) {
                 pthread_mutex_lock(&release_acquire_mutex);
                 
                 if (r == lock_protocol::OK) {
-                    lock->second.is_used = true; // TODO: useless?
                     n_successes++;
                     std::cout << client_socket << " lock_client_cache::acquire: acquired " << lid << std::endl;
                     std::cout << "N_SUCCESSES " << n_successes << std::endl;
