@@ -71,15 +71,14 @@ lock_client_cache::releaser() {
         std::cout << "lock_client_cache::releaser;"
                   << " lock id: " << release_request.first
                   << " seq.num: " << release_request.second << std::endl;
-        // Useless (for now)
+        
         auto lock = cached_locks.find(release_request.first);
         if (lock == cached_locks.end()) {
             throw std::runtime_error("There is no lock. ");
         }
         
-        if (lock->second.seqnum < release_request.second) {
-            std::cout << "lock_client_cache::releaser; " << lock->second.seqnum << "<" << release_request.second << std::endl;
-            //continue; // Doesn't work
+        if (lock->second.seqnum != release_request.second) {
+            throw std::runtime_error("Inconsistent seq.num in releaser. ");
         }
         
         delay_thread_struct *t = new delay_thread_struct();
