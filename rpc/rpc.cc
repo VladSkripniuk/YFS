@@ -108,7 +108,7 @@ rpcc::rpcc(sockaddr_in d, bool retrans) :
   if (retrans) {
     set_rand_seed();
     clt_nonce_ = random();
-  } else {
+  }else{
     //special client nonce 0 means this client does not 
     //require at-most-once logic from the server
     //because it uses tcp and never retries a failed connection
@@ -116,7 +116,7 @@ rpcc::rpcc(sockaddr_in d, bool retrans) :
   }
 
   char *loss_env = getenv("RPC_LOSSY");
-  if(loss_env != NULL) {
+  if(loss_env != NULL){
     lossytest_ = atoi(loss_env);
   }
 
@@ -124,7 +124,7 @@ rpcc::rpcc(sockaddr_in d, bool retrans) :
   xid_rep_window_.push_back(0);
 
   jsl_log(JSL_DBG_2, "rpcc::rpcc cltn_nonce is %d lossy %d\n", 
-    clt_nonce_, lossytest_); 
+      clt_nonce_, lossytest_); 
 }
 
 //IMPORTANT: destruction should happen only when no external threads
@@ -132,7 +132,7 @@ rpcc::rpcc(sockaddr_in d, bool retrans) :
 rpcc::~rpcc()
 {
   jsl_log(JSL_DBG_2, "rpcc::~rpcc delete nonce %d channo=%d\n", 
-    clt_nonce_, chan_?chan_->channo():-1); 
+      clt_nonce_, chan_?chan_->channo():-1); 
   if (chan_) {
     chan_->closeconn();
     chan_->decref();
@@ -153,7 +153,7 @@ rpcc::bind(TO to)
     srv_nonce_ = r;
   } else {
     jsl_log(JSL_DBG_2, "rpcc::bind %s failed %d\n", 
-      inet_ntoa(dst_.sin_addr), ret);
+        inet_ntoa(dst_.sin_addr), ret);
   }
   return ret;
 };
@@ -287,62 +287,6 @@ rpcc::call1(unsigned int proc, marshall &req, unmarshall &rep,
       clt_nonce_, proc, ca.xid, inet_ntoa(dst_.sin_addr),
       ntohs(dst_.sin_port), ca.done, ca.intret);
 
-  while (1) {
-
-    if (transmit) {
-      get_refconn(&ch);
-      if (ch) {
-  ch->send(req.cstr(), req.size());
-  jsl_log(JSL_DBG_2, 
-    "rpcc::call1 %u just sent req proc %x xid %u clt_nonce %d\n", 
-    clt_nonce_, proc, ca.xid, clt_nonce_); 
-      }
-      transmit = false; //only send once on a given channel
-    }
-
-    if (!finaldeadline.tv_sec)
-      break;
-
-    clock_gettime(CLOCK_REALTIME, &now);
-    add_timespec(now, curr_to.to, &nextdeadline); 
-    if (cmp_timespec(nextdeadline,finaldeadline) > 0) {
-      nextdeadline = finaldeadline;
-      finaldeadline.tv_sec = 0;
-    }
-
-    {
-      ScopedLock cal(&ca.m);
-      while (!ca.done) {
-  if (pthread_cond_timedwait(&ca.c, &ca.m, &nextdeadline) == ETIMEDOUT)
-    break;
-      }
-      if (ca.done)
-  break;
-    }
-
-    if (retrans_ && (!ch || ch->isdead())) {
-      //since connection is dead, we retransmit on the new connection 
-      transmit = true; 
-    }
-    curr_to.to <<= 1;
-  }
-
-  { 
-    ScopedLock ml(&m_); //no locking of ca.m because no one but this thread changes ca.xid 
-    calls_.erase(ca.xid);
-    // we potentially need to update the xid again here, in case the
-    // packet times out before it's even sent by the channel.  nasty.
-    // but I don't think there's any harm in potentially doing it twice
-    update_xid_rep(ca.xid);
-  }
-
-  ScopedLock cal(&ca.m);
-
-  jsl_log(JSL_DBG_2, 
-    "rpcc::call1 %u wait over for req proc %x xid %u %s:%d done? %d ret %d \n", 
-    clt_nonce_, proc, ca.xid, inet_ntoa(dst_.sin_addr),
-    ntohs(dst_.sin_port), ca.done, ca.intret);
-
   if (ch)
     ch->decref();
   //destruction of req automatically frees its buffer
@@ -401,7 +345,7 @@ rpcc::got_pdu(connection *c, char *b, int sz)
     ca->intret = h.ret;
     if (ca->intret < 0) {
       jsl_log(JSL_DBG_2, "rpcc::got_pdu: RPC reply error for xid %d intret %d\n",
-        h.xid, ca->intret);
+          h.xid, ca->intret);
     }
     ca->done = 1;
   }
@@ -427,7 +371,7 @@ rpcc::update_xid_rep(unsigned int xid)
   }
   xid_rep_window_.push_back(xid);
 
- compress:
+compress:
   it = xid_rep_window_.begin();
   for (it++; it != xid_rep_window_.end(); it++) {
     while (xid_rep_window_.front() + 1 == *it)
@@ -541,8 +485,9 @@ rpcs::dispatch(djob_t *j)
   }
 
   jsl_log(JSL_DBG_2,
-    "rpcs::dispatch: rpc %u (proc %x, last_rep %u) from clt %u for srv instance %u \n",
-    h.xid, proc, h.xid_rep, h.clt_nonce, h.srv_nonce);
+      "rpcs::dispatch: rpc %u (proc %x, last_rep %u) from clt %u for srv instance %u \n",
+      h.xid, proc, h.xid_rep, h.clt_nonce, h.srv_nonce);
+
 
   marshall rep;
   reply_header rh(h.xid,0);
@@ -550,8 +495,9 @@ rpcs::dispatch(djob_t *j)
   //is client sending to an old instance of server?
   if (h.srv_nonce != 0 && h.srv_nonce != nonce_) {
     jsl_log(JSL_DBG_2,
-      "rpcs::dispatch: rpc for an old server instance %u (current %u) proc %x\n",
-      h.srv_nonce, nonce_, h.proc);
+        "rpcs::dispatch: rpc for an old server instance %u (current %u) proc %x\n",
+        h.srv_nonce, nonce_, h.proc);
+
     rh.ret = rpc_const::oldsrv_failure;
     rep.pack_reply_header(rh);
     c->send(rep.cstr(),rep.size());
@@ -564,7 +510,8 @@ rpcs::dispatch(djob_t *j)
     ScopedLock pl(&procs_m_);
     if(procs_.count(proc) < 1){
       jsl_log(JSL_DBG_2, "rpcs::dispatch: bad proc %x procs.count %u\n",
-        proc, (unsigned)procs_.count(proc));
+          proc, (unsigned)procs_.count(proc));
+
       c->decref();
       return;
     }
@@ -582,10 +529,11 @@ rpcs::dispatch(djob_t *j)
       ScopedLock rwl(&reply_window_m_);
       // if we don't know about this clt_nonce, create a cleanup object
       if (reply_window_.find(h.clt_nonce) == reply_window_.end()) {
-  assert (reply_window_[h.clt_nonce].size() == 0); // create
-  jsl_log(JSL_DBG_2,
-    "rpcs::dispatch: new client %u xid %d chan %d, total clients %d\n", 
-    h.clt_nonce, h.xid, c->channo(), (int)reply_window_.size());
+        assert (reply_window_[h.clt_nonce].size() == 0); // create
+        jsl_log(JSL_DBG_2,
+            "rpcs::dispatch: new client %u xid %d chan %d, total clients %d\n", 
+            h.clt_nonce, h.xid, c->channo(), (int)reply_window_.size());
+
       }
     }
 
@@ -593,12 +541,13 @@ rpcs::dispatch(djob_t *j)
     {
       ScopedLock rwl(&conss_m_);
       if (conns_.find(h.clt_nonce) == conns_.end()) {
-  c->incref();
-  conns_[h.clt_nonce] = c;
+        c->incref();
+        conns_[h.clt_nonce] = c;
       } else if (conns_[h.clt_nonce] != c){
-  conns_[h.clt_nonce]->decref();
-  c->incref();
-  conns_[h.clt_nonce] = c;
+        conns_[h.clt_nonce]->decref();
+        c->incref();
+        conns_[h.clt_nonce] = c;
+
       }
     }
 
@@ -609,55 +558,55 @@ rpcs::dispatch(djob_t *j)
   }
 
   switch (stat) {
-  case NEW: //new request
-    if (counting_) {
-      updatestat(proc);
-    }
-
-    rh.ret = f->fn(req, rep);
-    assert(rh.ret >= 0 || 
-     rh.ret == rpc_const::unmarshal_args_failure);
-
-    rep.pack_reply_header(rh);
-    rep.take_buf(&b1,&sz1);
-
-    jsl_log(JSL_DBG_2,
-      "rpcs::dispatch: sending and saving reply of size %d for rpc %u, proc %x ret %d, clt %u\n",
-      sz1, h.xid, proc, rh.ret, h.clt_nonce);
-
-    if (h.clt_nonce > 0) {
-      //only record replies for clients that require at-most-once logic
-      add_reply(h.clt_nonce, h.xid, b1, sz1);
-    }
-
-    // get the latest connection to the client
-    {
-      ScopedLock rwl(&conss_m_);
-      if (c->isdead() && c != conns_[h.clt_nonce]) {
-  c->decref();
-  c = conns_[h.clt_nonce];
-  c->incref();
+    case NEW: //new request
+      if (counting_) {
+        updatestat(proc);
       }
-    }
 
-    c->send(b1, sz1);
-    if (h.clt_nonce == 0) {
-      //reply is not added to at-most-once window, free it
-      free(b1);
-    }
-    break;
-  case INPROGRESS: //server is working on this request
-    break;
-  case DONE: //duplicate and we still have the response
-    c->send(b1, sz1);
-    break;
-  case FORGOTTEN: //very old request and we don't have the response anymore
-    jsl_log(JSL_DBG_2, "rpcs::dispatch: very old request %u from %u\n", 
-      h.xid, h.clt_nonce);
-    rh.ret = rpc_const::atmostonce_failure;
-    rep.pack_reply_header(rh);
-    c->send(rep.cstr(),rep.size());
-    break;
+      rh.ret = f->fn(req, rep);
+      assert(rh.ret >= 0 || 
+          rh.ret == rpc_const::unmarshal_args_failure);
+
+      rep.pack_reply_header(rh);
+      rep.take_buf(&b1,&sz1);
+
+      jsl_log(JSL_DBG_2,
+          "rpcs::dispatch: sending and saving reply of size %d for rpc %u, proc %x ret %d, clt %u\n",
+          sz1, h.xid, proc, rh.ret, h.clt_nonce);
+
+      if (h.clt_nonce > 0) {
+        //only record replies for clients that require at-most-once logic
+        add_reply(h.clt_nonce, h.xid, b1, sz1);
+      }
+
+      // get the latest connection to the client
+      {
+        ScopedLock rwl(&conss_m_);
+        if (c->isdead() && c != conns_[h.clt_nonce]) {
+          c->decref();
+          c = conns_[h.clt_nonce];
+          c->incref();
+        }
+      }
+
+      c->send(b1, sz1);
+      if (h.clt_nonce == 0) {
+        //reply is not added to at-most-once window, free it
+        free(b1);
+      }
+      break;
+    case INPROGRESS: //server is working on this request
+      break;
+    case DONE: //duplicate and we still have the response
+      c->send(b1, sz1);
+      break;
+    case FORGOTTEN: //very old request and we don't have the response anymore
+      jsl_log(JSL_DBG_2, "rpcs::dispatch: very old request %u from %u\n", 
+          h.xid, h.clt_nonce);
+      rh.ret = rpc_const::atmostonce_failure;
+      rep.pack_reply_header(rh);
+      c->send(rep.cstr(),rep.size());
+      break;
   }
   c->decref();
 }
@@ -979,24 +928,6 @@ operator>>(unmarshall &u, unsigned long long &x)
   return u;
 }
 
-marshall &
-operator<<(marshall &m, unsigned long x)
-{
-  if(sizeof(unsigned long) == sizeof(unsigned int))
-    return m << (unsigned int) x;
-  if(sizeof(unsigned long) == sizeof(unsigned long long))
-    return m << (unsigned long long) x;
-}
-
-unmarshall &
-operator>>(unmarshall &u, unsigned long &x)
-{
-  if(sizeof(unsigned long) == sizeof(unsigned int))
-    return u >> (unsigned int &) x;
-  if(sizeof(unsigned long) == sizeof(unsigned long long))
-    return u >> (unsigned long long &) x;
-}
-
 unmarshall &
 operator>>(unmarshall &u, std::string &s)
 {
@@ -1040,8 +971,8 @@ operator>>(unmarshall &u, unsigned long &x)
 
 bool operator<(const sockaddr_in &a, const sockaddr_in &b) {
   return ((a.sin_addr.s_addr < b.sin_addr.s_addr) ||
-    ((a.sin_addr.s_addr == b.sin_addr.s_addr) &&
-     ((a.sin_port < b.sin_port))));
+      ((a.sin_addr.s_addr == b.sin_addr.s_addr) &&
+       ((a.sin_port < b.sin_port))));
 }
 
 /*---------------auxilary function--------------*/
