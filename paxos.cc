@@ -148,7 +148,41 @@ proposer::prepare(unsigned instance, std::vector<std::string> &accepts,
          std::vector<std::string> nodes,
          std::string &v)
 {
-  return false;
+  std::cout << "Vlados!\n";
+
+  prop_t max_n_a;
+  max_n_a.n = -1;
+
+  for (unsigned i = 0; i < nodes.size(); i++) {
+    handle h(nodes[i]);
+    paxos_protocol::preparearg a;
+    paxos_protocol::prepareres r;
+
+    a.instance = instance;
+    a.n = my_n;
+    // I can't understand what do we need paxos_protocol::preparearg::v for
+    a.v = v;
+
+    assert(h.get_rpcc());
+    if (h.get_rpcc()->call(paxos_protocol::preparereq, me, a, r) == 0) {
+      if (r.oldinstance) {
+        std::cout << "HEHEAY\n";
+        acc->commit(r.oldinstance, r.v_a);
+        return false;
+      }
+      else {
+        accepts.push_back(nodes[i]);
+        if (r.n_a > max_n_a) {
+          v = r.v_a;
+        }
+      }
+    }
+    else {
+      return false;    
+    }
+  }
+  std::cout << "v: " << v << std::endl;
+  return true;
 }
 
 
@@ -156,12 +190,39 @@ void
 proposer::accept(unsigned instance, std::vector<std::string> &accepts,
         std::vector<std::string> nodes, std::string v)
 {
+  for (unsigned i = 0; i < nodes.size(); i++) {
+    handle h(nodes[i]);
+    paxos_protocol::acceptarg a;
+    int r;
+
+    a.instance = instance;
+    a.n = my_n;
+    a.v = v;
+
+    assert(h.get_rpcc());
+    if (h.get_rpcc()->call(paxos_protocol::acceptreq, me, a, r) == paxos_protocol::OK) {
+        accepts.push_back(nodes[i]);
+    }
+  }
+  std::cout << "v: " << v << std::endl;
 }
 
 void
 proposer::decide(unsigned instance, std::vector<std::string> accepts, 
 	      std::string v)
 {
+  for (unsigned i = 0; i < accepts.size(); i++) {
+    handle h(accepts[i]);
+    paxos_protocol::decidearg a;
+    int r;
+
+    a.instance = instance;
+    a.v = v;
+
+    assert(h.get_rpcc());
+    h.get_rpcc()->call(paxos_protocol::decidereq, me, a, r);
+  }
+  std::cout << "v: " << v << std::endl;
 }
 
 acceptor::acceptor(class paxos_change *_cfg, bool _first, std::string _me, 
@@ -195,8 +256,26 @@ acceptor::preparereq(std::string src, paxos_protocol::preparearg a,
     paxos_protocol::prepareres &r)
 {
   // handle a preparereq message from proposer
-  return paxos_protocol::OK;
-
+  std::cout << "acceptor::preparereq Vlados\n";
+  std::cout << "acceptor::preparereq: a.instance " << a.instance << " instance_h " << instance_h << std::endl;
+  if (a.instance <= instance_h) {
+    assert(instance_h);
+    r.oldinstance = instance_h;
+    r.v_a = values[instance_h];
+    return paxos_protocol::OK;
+  }
+  
+  r.oldinstance = 0;
+  if (a.n > n_h) {
+    n_h = a.n;
+    l->loghigh(n_h);
+    r.n_a = n_a;
+    r.v_a = v_a;
+    return paxos_protocol::OK;
+  }
+  else {
+    return paxos_protocol::ERR;
+  }
 }
 
 paxos_protocol::status
@@ -204,15 +283,42 @@ acceptor::acceptreq(std::string src, paxos_protocol::acceptarg a, int &r)
 {
 
   // handle an acceptreq message from proposer
-
-  return paxos_protocol::OK;
+  std::cout << "acceptor::acceptreq Vlados\n";
+  if (a.instance <= instance_h) {
+    // assert(instance_h);
+    // r.oldinstance = instance_h;
+    // r.v_a = values[instance_h];
+    // return paxos_protocol::OK;
+    r = paxos_protocol::ERR;
+    return paxos_protocol::ERR;
+  }
+  
+  if (a.n >= n_h) {
+    n_a = a.n;
+    v_a = a.v;
+    l->logprop(a.n, a.v);
+    //return acceptres??
+    r = paxos_protocol::OK;
+    return paxos_protocol::OK;
+  }
+  else {
+    r = paxos_protocol::ERR;
+    return paxos_protocol::ERR;
+  }
 }
 
 paxos_protocol::status
 acceptor::decidereq(std::string src, paxos_protocol::decidearg a, int &r)
 {
-
   // handle an decide message from proposer
+  if (a.instance <= instance_h) {
+    // ignore the message    // or reply with oldinstance, but it won't matter
+    return paxos_protocol::OK;
+  }
+
+  values[a.instance] = a.v;
+  instance_h = a.instance;
+  l->loginstance(a.instance, a.v);
 
   return paxos_protocol::OK;
 }

@@ -94,6 +94,7 @@ class proposer {
   bool run(int instance, std::vector<std::string> nodes, std::string v);
   bool isrunning();
   void breakpoint(int b);
+
 };
 
 
