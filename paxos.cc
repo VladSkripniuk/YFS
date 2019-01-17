@@ -1,5 +1,6 @@
 #include "paxos.h"
 #include "handle.h"
+#include "slock.h"
 // #include <signal.h>
 #include <stdio.h>
 
@@ -83,6 +84,7 @@ void
 proposer::setn()
 {
   my_n.n = acc->get_n_h().n + 1 > my_n.n + 1 ? acc->get_n_h().n + 1 : my_n.n + 1;
+  my_n.m = me;
 }
 
 bool
@@ -148,7 +150,7 @@ proposer::prepare(unsigned instance, std::vector<std::string> &accepts,
          std::vector<std::string> nodes,
          std::string &v)
 {
-  std::cout << "Vlados!\n";
+  // ScopedLock mtx_(&pxs_mutex);
 
   prop_t max_n_a;
   max_n_a.n = -1;
@@ -166,7 +168,6 @@ proposer::prepare(unsigned instance, std::vector<std::string> &accepts,
     assert(h.get_rpcc());
     if (h.get_rpcc()->call(paxos_protocol::preparereq, me, a, r) == 0) {
       if (r.oldinstance) {
-        std::cout << "HEHEAY\n";
         acc->commit(r.oldinstance, r.v_a);
         return false;
       }
@@ -181,7 +182,6 @@ proposer::prepare(unsigned instance, std::vector<std::string> &accepts,
       return false;    
     }
   }
-  std::cout << "v: " << v << std::endl;
   return true;
 }
 
@@ -190,6 +190,7 @@ void
 proposer::accept(unsigned instance, std::vector<std::string> &accepts,
         std::vector<std::string> nodes, std::string v)
 {
+  // ScopedLock mtx_(&pxs_mutex);
   for (unsigned i = 0; i < nodes.size(); i++) {
     handle h(nodes[i]);
     paxos_protocol::acceptarg a;
@@ -204,13 +205,13 @@ proposer::accept(unsigned instance, std::vector<std::string> &accepts,
         accepts.push_back(nodes[i]);
     }
   }
-  std::cout << "v: " << v << std::endl;
 }
 
 void
 proposer::decide(unsigned instance, std::vector<std::string> accepts, 
 	      std::string v)
 {
+  // ScopedLock mtx_(&pxs_mutex);
   for (unsigned i = 0; i < accepts.size(); i++) {
     handle h(accepts[i]);
     paxos_protocol::decidearg a;
@@ -222,7 +223,6 @@ proposer::decide(unsigned instance, std::vector<std::string> accepts,
     assert(h.get_rpcc());
     h.get_rpcc()->call(paxos_protocol::decidereq, me, a, r);
   }
-  std::cout << "v: " << v << std::endl;
 }
 
 acceptor::acceptor(class paxos_change *_cfg, bool _first, std::string _me, 
@@ -230,7 +230,6 @@ acceptor::acceptor(class paxos_change *_cfg, bool _first, std::string _me,
   : cfg(_cfg), me (_me), instance_h(0)
 {
   assert (pthread_mutex_init(&pxs_mutex, NULL) == 0);
-
   n_h.n = 0;
   n_h.m = me;
   n_a.n = 0;
@@ -255,9 +254,8 @@ paxos_protocol::status
 acceptor::preparereq(std::string src, paxos_protocol::preparearg a,
     paxos_protocol::prepareres &r)
 {
+  // ScopedLock mtx_(&pxs_mutex);
   // handle a preparereq message from proposer
-  std::cout << "acceptor::preparereq Vlados\n";
-  std::cout << "acceptor::preparereq: a.instance " << a.instance << " instance_h " << instance_h << std::endl;
   if (a.instance <= instance_h) {
     assert(instance_h);
     r.oldinstance = instance_h;
@@ -281,9 +279,8 @@ acceptor::preparereq(std::string src, paxos_protocol::preparearg a,
 paxos_protocol::status
 acceptor::acceptreq(std::string src, paxos_protocol::acceptarg a, int &r)
 {
-
+  // ScopedLock mtx_(&pxs_mutex);
   // handle an acceptreq message from proposer
-  std::cout << "acceptor::acceptreq Vlados\n";
   if (a.instance <= instance_h) {
     // assert(instance_h);
     // r.oldinstance = instance_h;
@@ -310,15 +307,18 @@ acceptor::acceptreq(std::string src, paxos_protocol::acceptarg a, int &r)
 paxos_protocol::status
 acceptor::decidereq(std::string src, paxos_protocol::decidearg a, int &r)
 {
+  // ScopedLock mtx_(&pxs_mutex);
   // handle an decide message from proposer
   if (a.instance <= instance_h) {
     // ignore the message    // or reply with oldinstance, but it won't matter
     return paxos_protocol::OK;
   }
 
-  values[a.instance] = a.v;
-  instance_h = a.instance;
-  l->loginstance(a.instance, a.v);
+  // values[a.instance] = a.v;
+  // instance_h = a.instance;
+  // l->loginstance(a.instance, a.v);
+
+  commit(a.instance, a.v);
 
   return paxos_protocol::OK;
 }
