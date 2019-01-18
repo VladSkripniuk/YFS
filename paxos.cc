@@ -90,6 +90,7 @@ proposer::setn()
 bool
 proposer::run(int instance, std::vector<std::string> c_nodes, std::string c_v)
 {
+  std::cout << "proposer::run: v: " << c_v << std::endl;
   std::vector<std::string> accepts;
   std::vector<std::string> nodes;
   std::vector<std::string> nodes1;
@@ -151,7 +152,7 @@ proposer::prepare(unsigned instance, std::vector<std::string> &accepts,
          std::string &v)
 {
   // ScopedLock mtx_(&pxs_mutex);
-
+  std::cout << "proposer::prepare: v: " << v << std::endl;
   prop_t max_n_a;
   max_n_a.n = -1;
 
@@ -166,12 +167,15 @@ proposer::prepare(unsigned instance, std::vector<std::string> &accepts,
     a.v = v;
 
     assert(h.get_rpcc());
-    if (h.get_rpcc()->call(paxos_protocol::preparereq, me, a, r) == 0) {
+    std::cout << "proposer::prepare: send to " << nodes[i] << std::endl;
+    if (h.get_rpcc()->call(paxos_protocol::preparereq, me, a, r, rpcc::to(1000)) == 0) {
       if (r.oldinstance) {
+        std::cout << "proposer::prepare: old instance " << nodes[i] << std::endl;
         acc->commit(r.oldinstance, r.v_a);
         return false;
       }
       else {
+        std::cout << "proposer::prepare: accepted " << nodes[i] << std::endl;
         accepts.push_back(nodes[i]);
         if (r.n_a > max_n_a) {
           v = r.v_a;
@@ -179,7 +183,8 @@ proposer::prepare(unsigned instance, std::vector<std::string> &accepts,
       }
     }
     else {
-      return false;    
+      std::cout << "proposer::prepare: rejected " << nodes[i] << std::endl;
+      // return false;    
     }
   }
   return true;
@@ -190,6 +195,7 @@ void
 proposer::accept(unsigned instance, std::vector<std::string> &accepts,
         std::vector<std::string> nodes, std::string v)
 {
+  std::cout << "proposer::accept: v: " << v << std::endl;
   // ScopedLock mtx_(&pxs_mutex);
   for (unsigned i = 0; i < nodes.size(); i++) {
     handle h(nodes[i]);
@@ -201,7 +207,7 @@ proposer::accept(unsigned instance, std::vector<std::string> &accepts,
     a.v = v;
 
     assert(h.get_rpcc());
-    if (h.get_rpcc()->call(paxos_protocol::acceptreq, me, a, r) == paxos_protocol::OK) {
+    if (h.get_rpcc()->call(paxos_protocol::acceptreq, me, a, r, rpcc::to(1000)) == paxos_protocol::OK) {
         accepts.push_back(nodes[i]);
     }
   }
@@ -221,7 +227,7 @@ proposer::decide(unsigned instance, std::vector<std::string> accepts,
     a.v = v;
 
     assert(h.get_rpcc());
-    h.get_rpcc()->call(paxos_protocol::decidereq, me, a, r);
+    h.get_rpcc()->call(paxos_protocol::decidereq, me, a, r, rpcc::to(1000));
   }
 }
 
@@ -254,6 +260,7 @@ paxos_protocol::status
 acceptor::preparereq(std::string src, paxos_protocol::preparearg a,
     paxos_protocol::prepareres &r)
 {
+  std::cout << "acceptor::preparereq: v: " << a.v << std::endl;
   // ScopedLock mtx_(&pxs_mutex);
   // handle a preparereq message from proposer
   if (a.instance <= instance_h) {
@@ -262,7 +269,8 @@ acceptor::preparereq(std::string src, paxos_protocol::preparearg a,
     r.v_a = values[instance_h];
     return paxos_protocol::OK;
   }
-  
+  std::cout << "acceptor::preparereq: a.n.n " << a.n.n << " a.n.m " << a.n.m << std::endl;
+  std::cout << "acceptor::preparereq: n_h.n " << n_h.n << " n_h.m " << n_h.m << std::endl;
   r.oldinstance = 0;
   if (a.n > n_h) {
     n_h = a.n;
@@ -272,6 +280,7 @@ acceptor::preparereq(std::string src, paxos_protocol::preparearg a,
     return paxos_protocol::OK;
   }
   else {
+    std::cout << "acceptor::preparereq: rejected \n";
     return paxos_protocol::ERR;
   }
 }
@@ -279,6 +288,7 @@ acceptor::preparereq(std::string src, paxos_protocol::preparearg a,
 paxos_protocol::status
 acceptor::acceptreq(std::string src, paxos_protocol::acceptarg a, int &r)
 {
+  std::cout << "acceptor::acceptreq: v: " << a.v << std::endl;
   // ScopedLock mtx_(&pxs_mutex);
   // handle an acceptreq message from proposer
   if (a.instance <= instance_h) {
