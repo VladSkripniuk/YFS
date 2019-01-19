@@ -229,6 +229,12 @@ rsm::commit_change()
   pthread_mutex_lock(&rsm_mutex);
   // Lab 7:
   // - If I am not part of the new view, start recovery
+  std::cout << "rsm::commit_change: " << cfg->ismember(cfg->myaddr()) << std::endl;
+  if (!cfg->ismember(cfg->myaddr())) {
+    pthread_mutex_unlock(&rsm_mutex);
+    recovery();
+    pthread_mutex_lock(&rsm_mutex);
+  }
   pthread_mutex_unlock(&rsm_mutex);
 }
 
