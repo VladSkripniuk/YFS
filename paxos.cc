@@ -268,7 +268,7 @@ acceptor::preparereq(std::string src, paxos_protocol::preparearg a,
     paxos_protocol::prepareres &r)
 {
   std::cout << "acceptor::preparereq: v: " << a.v << std::endl;
-  // ScopedLock mtx_(&pxs_mutex);
+  ScopedLock mtx_(&pxs_mutex);
   // handle a preparereq message from proposer
   if (a.instance <= instance_h) {
     assert(instance_h);
@@ -296,7 +296,7 @@ paxos_protocol::status
 acceptor::acceptreq(std::string src, paxos_protocol::acceptarg a, int &r)
 {
   std::cout << "acceptor::acceptreq: v: " << a.v << std::endl;
-  // ScopedLock mtx_(&pxs_mutex);
+  ScopedLock mtx_(&pxs_mutex);
   // handle an acceptreq message from proposer
   if (a.instance <= instance_h) {
     // assert(instance_h);
