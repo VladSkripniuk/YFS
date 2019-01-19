@@ -147,8 +147,9 @@ rsm::recovery()
 	printf("recovery: joined\n");
       } else {
 	assert(pthread_mutex_unlock(&rsm_mutex)==0);
-	sleep (30); // XXX make another node in cfg primary?
+	// sleep (30); // XXX make another node in cfg primary?
 	assert(pthread_mutex_lock(&rsm_mutex)==0);
+  set_primary();
       }
     }
 
@@ -227,6 +228,7 @@ void
 rsm::commit_change() 
 {
   pthread_mutex_lock(&rsm_mutex);
+  set_primary();
   // Lab 7:
   // - If I am not part of the new view, start recovery
   std::cout << "rsm::commit_change: " << cfg->ismember(cfg->myaddr()) << std::endl;

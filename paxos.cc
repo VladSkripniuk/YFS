@@ -154,7 +154,8 @@ proposer::prepare(unsigned instance, std::vector<std::string> &accepts,
   // ScopedLock mtx_(&pxs_mutex);
   std::cout << "proposer::prepare: v: " << v << std::endl;
   prop_t max_n_a;
-  max_n_a.n = -1;
+  max_n_a.n = 0;
+  max_n_a.m = "";
 
   for (unsigned i = 0; i < nodes.size(); i++) {
     handle h(nodes[i]);
@@ -166,7 +167,11 @@ proposer::prepare(unsigned instance, std::vector<std::string> &accepts,
     // I can't understand what do we need paxos_protocol::preparearg::v for
     a.v = v;
 
-    assert(h.get_rpcc());
+    // assert(h.get_rpcc());
+    if (!h.get_rpcc()) {
+      std::cout << "proposer::prepare: get_rpcc() failure " << nodes[i] << std::endl;
+      continue;
+    }
     std::cout << "proposer::prepare: send to " << nodes[i] << std::endl;
     if (h.get_rpcc()->call(paxos_protocol::preparereq, me, a, r, rpcc::to(1000)) == 0) {
       if (r.oldinstance) {
@@ -175,10 +180,12 @@ proposer::prepare(unsigned instance, std::vector<std::string> &accepts,
         return false;
       }
       else {
-        std::cout << "proposer::prepare: accepted " << nodes[i] << std::endl;
+        std::cout << "proposer::prepare: accepted " << nodes[i] << " " << r.v_a << std::endl;
+        std::cout << "proposer::prepare: accepted1 " << r.n_a.n << " " << r.n_a.m << " " << max_n_a.n << " " << max_n_a.m << " " << (r.n_a > max_n_a);
         accepts.push_back(nodes[i]);
         if (r.n_a > max_n_a) {
           v = r.v_a;
+          max_n_a = r.n_a;
         }
       }
     }
