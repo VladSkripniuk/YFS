@@ -49,7 +49,7 @@ public:
 
   class ScopedRemoteLock {
   public:
-    ScopedRemoteLock(lock_client *lc, inum lock_id): lc_(lc), lock_id_(lock_id) {
+    ScopedRemoteLock(lock_client_cache *lc, inum lock_id): lc_(lc), lock_id_(lock_id) {
       std::cout << "acquire " << lock_id_ << std::endl;
       lc_->acquire(lock_id_);
     }
@@ -58,7 +58,7 @@ public:
       lc_->release(lock_id_);
     }
   private:
-    lock_client *lc_;
+    lock_client_cache *lc_;
     inum lock_id_;
   };
 

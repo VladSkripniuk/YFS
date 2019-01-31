@@ -10,6 +10,8 @@
 #include "lock_client.h"
 #include "extent_client.h"
 
+#include "rsm_client.h"
+
 // Classes that inherit lock_release_user can override dorelease so that 
 // that they will be called when lock_client releases a lock.
 // You will not need to do anything with this class until Lab 6.
@@ -135,9 +137,10 @@ public:
   }
 };
 
-class lock_client_cache : public lock_client {
+class lock_client_cache {
 
 private:
+  class rsm_client *rsmcl;
   class lock_release_user *lu;
   int rlock_port;
   std::string hostname;

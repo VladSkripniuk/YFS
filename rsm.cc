@@ -297,6 +297,40 @@ rsm::client_invoke(int procno, std::string req, std::string &r)
 {
   int ret = rsm_protocol::OK;
   // For lab 8
+  if (inviewchange) {
+    return rsm_client_protocol::BUSY;
+  }
+  if (!amiprimary()) {
+    return rsm_client_protocol::NOTPRIMARY;
+  }
+  assert(pthread_mutex_lock(&invoke_mutex)==0);
+
+  std::vector<std::string> nodes;
+  assert(pthread_mutex_lock(&rsm_mutex)==0);
+  nodes = cfg->get_curview();
+  assert(pthread_mutex_unlock(&rsm_mutex)==0);
+  // std::cout << "slaves: \n";
+  // std::cout << m << std::endl;
+
+  for (unsigned i = 0; i < nodes.size(); ++i) {
+    handle h(nodes[i]);
+    assert(h.get_rpcc() != 0);
+
+    int r;
+    ret = h.get_rpcc()->call(rsm_protocol::invoke, procno, myvs, req, r, rpcc::to(5000));
+    if (ret != 0) {
+      inviewchange = 1;
+      assert(pthread_mutex_unlock(&invoke_mutex)==0);
+      return rsm_client_protocol::BUSY;
+    }
+  }
+
+  r = execute(procno, req);
+
+  last_myvs = myvs;
+  myvs.seqno += 1;
+
+  assert(pthread_mutex_unlock(&invoke_mutex)==0);
   return ret;
 }
 
@@ -312,6 +346,10 @@ rsm::invoke(int proc, viewstamp vs, std::string req, int &dummy)
 {
   rsm_protocol::status ret = rsm_protocol::OK;
   // For lab 8
+  if ((myvs.vid == vs.vid) && (myvs.seqno+1 == vs.seqno)) {
+    execute(proc, req);
+    myvs = vs;
+  }
   return ret;
 }
 

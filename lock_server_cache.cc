@@ -53,10 +53,12 @@ lock_server_cache::revoker() {
         rlock_protocol::seqnum_t seqnum = locks[lid].seqnum;
         pthread_mutex_unlock(&release_acquire_mutex);
         
-        int r;
-        auto ret = cl->call(rlock_protocol::revoke, seqnum, lid, r);
-        if (ret != rlock_protocol::OK)
-            throw std::runtime_error("[rlock_protocol::revoke] != OK. ");
+        if (rsm->amiprimary()) {
+            int r;
+            auto ret = cl->call(rlock_protocol::revoke, seqnum, lid, r);
+            if (ret != rlock_protocol::OK)
+                throw std::runtime_error("[rlock_protocol::revoke] != OK. ");
+        }
     }
 }
 
@@ -96,13 +98,16 @@ lock_server_cache::retryer() {
         rpcc *cl;
         cl = lock_client->second.cl;
         
-        int r;
-        auto ret = cl->call(rlock_protocol::retry, client_and_seqnum.seqnum, lid, r);
-        if(ret != rlock_protocol::OK) {
-            throw std::runtime_error("[rlock_protocol::retry] != OK");
+        if (rsm->amiprimary()) {
+            int r;
+            auto ret = cl->call(rlock_protocol::retry, client_and_seqnum.seqnum, lid, r);
+            if(ret != rlock_protocol::OK) {
+                throw std::runtime_error("[rlock_protocol::retry] != OK");
+            }
+            std::cout << "retrier call " << ret << " " << r << std::endl;
+            std::cout << "retrier: retry sent to " << client_and_seqnum.client_id << " " << lid << std::endl;
+    
         }
-        std::cout << "retrier call " << ret << " " << r << std::endl;
-        std::cout << "retrier: retry sent to " << client_and_seqnum.client_id << " " << lid << std::endl;
     }
 }
 
@@ -113,14 +118,14 @@ lock_server_cache::stat(lock_protocol::lockid_t lid, int &r) {
 }
 
 lock_protocol::status
-lock_server_cache::acquire(int clt, std::string client_socket, lock_protocol::seqnum_t seqnum, lock_protocol::lockid_t lid, int &r) {
+lock_server_cache::acquire(std::string client_socket, lock_protocol::seqnum_t seqnum, lock_protocol::lockid_t lid, int &r) {
    
     // TODO: looks like a better choice
     //if (lock_clients.find(client_socket) == lock_clients.end()) {
     //    throw std::runtime_error("Unsubscribed client tries to acquire lock.");
     //}
     if (lock_clients.find(client_socket) == lock_clients.end()) {
-        subscribe(clt, client_socket, r);
+        subscribe(client_socket, r);
     }
     
     pthread_mutex_lock(&release_acquire_mutex);
@@ -169,7 +174,7 @@ lock_server_cache::acquire(int clt, std::string client_socket, lock_protocol::se
 }
 
 lock_protocol::status
-lock_server_cache::release(int clt, std::string client_socket, lock_protocol::seqnum_t seqnum, lock_protocol::lockid_t lid, int &r) {
+lock_server_cache::release(std::string client_socket, lock_protocol::seqnum_t seqnum, lock_protocol::lockid_t lid, int &r) {
 
     pthread_mutex_lock(&release_acquire_mutex);
     std::cout << "release request (client socket: " << client_socket << ", seqnum: "<< seqnum << ", lock id: " << lid << ")\n";
@@ -198,7 +203,7 @@ lock_server_cache::release(int clt, std::string client_socket, lock_protocol::se
 
 // TODO: delete useless params
 lock_protocol::status
-lock_server_cache::subscribe(int clt, std::string client_socket, int &r) {
+lock_server_cache::subscribe(std::string client_socket, int &r) {
     pthread_mutex_lock(&release_acquire_mutex);
     std::cout << "subscribe request (clt: " << client_socket << ")\n";
     

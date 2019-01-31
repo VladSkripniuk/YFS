@@ -22,7 +22,8 @@ int lock_client_cache::last_port = 0;
 
 lock_client_cache::lock_client_cache(std::string xdst,
                                      class lock_release_user *_lu)
-: lock_client(xdst), lu(_lu), last_seqnum(0)
+// : lock_client(xdst), lu(_lu), last_seqnum(0)
+: rsmcl(new rsm_client(xdst)), lu(_lu), last_seqnum(0)
 {
     srand(time(NULL)^last_port);
     rlock_port = ((rand()%32000) | (0x1 << 10));
@@ -33,6 +34,7 @@ lock_client_cache::lock_client_cache(std::string xdst,
     host << hname << ":" << rlock_port;
     client_socket = host.str();
     last_port = rlock_port;
+
     rpcs *rlsrpc = new rpcs(rlock_port);
     /* register RPC handlers with rlsrpc */
     rlsrpc->reg(rlock_protocol::revoke, this, &lock_client_cache::accept_revoke_request);
@@ -102,7 +104,8 @@ lock_client_cache::acquire(lock_protocol::lockid_t lid) {
     // I need to subscribe for async rpc responses
     if (last_seqnum == 0) {
         int r;
-        ret = cl->call(lock_protocol::subscribe, cl->id(), client_socket, r);
+        // ret = cl->call(lock_protocol::subscribe, cl->id(), client_socket, r);
+        ret = rsmcl->call(lock_protocol::subscribe, client_socket, r);
         if (ret != lock_protocol::OK) {
             return ret;
         }
@@ -131,7 +134,8 @@ lock_client_cache::acquire(lock_protocol::lockid_t lid) {
                 lock->second.seqnum = ++last_seqnum;
                 
                 pthread_mutex_unlock(&release_acquire_mutex);
-                ret = cl->call(lock_protocol::acquire, cl->id(), client_socket, lock->second.seqnum, lid, r);
+                // ret = cl->call(lock_protocol::acquire, cl->id(), client_socket, lock->second.seqnum, lid, r);
+                ret = rsmcl->call(lock_protocol::acquire, client_socket, lock->second.seqnum, lid, r);
                 pthread_mutex_lock(&release_acquire_mutex);
                 
                 if (r == lock_protocol::OK) {
@@ -228,13 +232,15 @@ lock_client_cache::release_to_lock_server(lock_protocol::lockid_t lid) {
             
             // flush to extent
             std::cout << "lu->dorelease(lid): lu = " << lu << std::endl;
-            lu->dorelease(lid);
+            if (lu) {
+              lu->dorelease(lid);
+            }
             
             // TODO: useless?
             // usleep(100000);
             
             int r;
-            auto ret = cl->call(lock_protocol::release, cl->id(), client_socket, lock->second.seqnum, lid, r);
+            auto ret = rsmcl->call(lock_protocol::release, client_socket, lock->second.seqnum, lid, r);
             if (ret != lock_protocol::OK) {
                 throw std::runtime_error("Some problem with RPC in release_to_lock_server. ");
             }

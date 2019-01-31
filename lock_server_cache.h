@@ -65,9 +65,9 @@ class lock_server_cache {
   void revoker();
   void retryer();
   // lock_protocol::status stat(int clt, lock_protocol::lockid_t lid, int &);
-  lock_protocol::status acquire(int clt, std::string client_socket, lock_protocol::seqnum_t seqnum, lock_protocol::lockid_t lid, int &r);
-  lock_protocol::status release(int clt, std::string client_socket, lock_protocol::seqnum_t seqnum, lock_protocol::lockid_t lid, int &r);
-  lock_protocol::status subscribe(int clt, std::string client_socke, int &r);
+  lock_protocol::status acquire(std::string client_socket, lock_protocol::seqnum_t seqnum, lock_protocol::lockid_t lid, int &r);
+  lock_protocol::status release(std::string client_socket, lock_protocol::seqnum_t seqnum, lock_protocol::lockid_t lid, int &r);
+  lock_protocol::status subscribe(std::string client_socke, int &r);
 
 protected:
   int nacquire = 0;
