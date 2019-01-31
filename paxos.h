@@ -70,8 +70,8 @@ class proposer {
 
   // Proposer state
   bool stable;
-  std::vector<std::string> c_nodes;	// nodes in this instance
-  std::string c_v;	// value we would like to propose
+  // std::vector<std::string> c_nodes;	// nodes in this instance
+  // std::string c_v;	// value we would like to propose
   prop_t my_n;		// number of the last proposal used in this instance
 
   void setn();
@@ -94,6 +94,7 @@ class proposer {
   bool run(int instance, std::vector<std::string> nodes, std::string v);
   bool isrunning();
   void breakpoint(int b);
+
 };
 
 

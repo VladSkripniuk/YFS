@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include "extent_server.h"
 
+#include "jsl_log.h"
+
 // Main loop of extent server
 
 int
@@ -22,6 +24,7 @@ main(int argc, char *argv[])
   if(count_env != NULL){
     count = atoi(count_env);
   }
+  jsl_set_debug(2);
 
   rpcs server(atoi(argv[1]), count);
   extent_server ls;

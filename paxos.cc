@@ -1,5 +1,6 @@
 #include "paxos.h"
 #include "handle.h"
+#include "slock.h"
 // #include <signal.h>
 #include <stdio.h>
 
@@ -83,11 +84,13 @@ void
 proposer::setn()
 {
   my_n.n = acc->get_n_h().n + 1 > my_n.n + 1 ? acc->get_n_h().n + 1 : my_n.n + 1;
+  my_n.m = me;
 }
 
 bool
-proposer::run(int instance, std::vector<std::string> newnodes, std::string newv)
+proposer::run(int instance, std::vector<std::string> c_nodes, std::string c_v)
 {
+  std::cout << "proposer::run: v: " << c_v << std::endl;
   std::vector<std::string> accepts;
   std::vector<std::string> nodes;
   std::vector<std::string> nodes1;
@@ -96,7 +99,7 @@ proposer::run(int instance, std::vector<std::string> newnodes, std::string newv)
 
   pthread_mutex_lock(&pxs_mutex);
   printf("start: initiate paxos for %s w. i=%d v=%s stable=%d\n",
-	 print_members(newnodes).c_str(), instance, newv.c_str(), stable);
+	 print_members(c_nodes).c_str(), instance, c_v.c_str(), stable);
   if (!stable) {  // already running proposer?
     printf("proposer::run: already running\n");
     pthread_mutex_unlock(&pxs_mutex);
@@ -148,7 +151,50 @@ proposer::prepare(unsigned instance, std::vector<std::string> &accepts,
          std::vector<std::string> nodes,
          std::string &v)
 {
-  return false;
+  // ScopedLock mtx_(&pxs_mutex);
+  std::cout << "proposer::prepare: v: " << v << std::endl;
+  prop_t max_n_a;
+  max_n_a.n = 0;
+  max_n_a.m = "";
+
+  for (unsigned i = 0; i < nodes.size(); i++) {
+    handle h(nodes[i]);
+    paxos_protocol::preparearg a;
+    paxos_protocol::prepareres r;
+
+    a.instance = instance;
+    a.n = my_n;
+    // I can't understand what do we need paxos_protocol::preparearg::v for
+    a.v = v;
+
+    // assert(h.get_rpcc());
+    if (!h.get_rpcc()) {
+      std::cout << "proposer::prepare: get_rpcc() failure " << nodes[i] << std::endl;
+      continue;
+    }
+    std::cout << "proposer::prepare: send to " << nodes[i] << std::endl;
+    if (h.get_rpcc()->call(paxos_protocol::preparereq, me, a, r, rpcc::to(1000)) == 0) {
+      if (r.oldinstance) {
+        std::cout << "proposer::prepare: old instance " << nodes[i] << std::endl;
+        acc->commit(r.oldinstance, r.v_a);
+        return false;
+      }
+      else {
+        std::cout << "proposer::prepare: accepted " << nodes[i] << " " << r.v_a << std::endl;
+        std::cout << "proposer::prepare: accepted1 " << r.n_a.n << " " << r.n_a.m << " " << max_n_a.n << " " << max_n_a.m << " " << (r.n_a > max_n_a);
+        accepts.push_back(nodes[i]);
+        if (r.n_a > max_n_a) {
+          v = r.v_a;
+          max_n_a = r.n_a;
+        }
+      }
+    }
+    else {
+      std::cout << "proposer::prepare: rejected " << nodes[i] << std::endl;
+      // return false;    
+    }
+  }
+  return true;
 }
 
 
@@ -156,12 +202,40 @@ void
 proposer::accept(unsigned instance, std::vector<std::string> &accepts,
         std::vector<std::string> nodes, std::string v)
 {
+  std::cout << "proposer::accept: v: " << v << std::endl;
+  // ScopedLock mtx_(&pxs_mutex);
+  for (unsigned i = 0; i < nodes.size(); i++) {
+    handle h(nodes[i]);
+    paxos_protocol::acceptarg a;
+    int r;
+
+    a.instance = instance;
+    a.n = my_n;
+    a.v = v;
+
+    assert(h.get_rpcc());
+    if (h.get_rpcc()->call(paxos_protocol::acceptreq, me, a, r, rpcc::to(1000)) == paxos_protocol::OK) {
+        accepts.push_back(nodes[i]);
+    }
+  }
 }
 
 void
 proposer::decide(unsigned instance, std::vector<std::string> accepts, 
 	      std::string v)
 {
+  // ScopedLock mtx_(&pxs_mutex);
+  for (unsigned i = 0; i < accepts.size(); i++) {
+    handle h(accepts[i]);
+    paxos_protocol::decidearg a;
+    int r;
+
+    a.instance = instance;
+    a.v = v;
+
+    assert(h.get_rpcc());
+    h.get_rpcc()->call(paxos_protocol::decidereq, me, a, r, rpcc::to(1000));
+  }
 }
 
 acceptor::acceptor(class paxos_change *_cfg, bool _first, std::string _me, 
@@ -169,7 +243,6 @@ acceptor::acceptor(class paxos_change *_cfg, bool _first, std::string _me,
   : cfg(_cfg), me (_me), instance_h(0)
 {
   assert (pthread_mutex_init(&pxs_mutex, NULL) == 0);
-
   n_h.n = 0;
   n_h.m = me;
   n_a.n = 0;
@@ -194,25 +267,75 @@ paxos_protocol::status
 acceptor::preparereq(std::string src, paxos_protocol::preparearg a,
     paxos_protocol::prepareres &r)
 {
+  std::cout << "acceptor::preparereq: v: " << a.v << std::endl;
+  ScopedLock mtx_(&pxs_mutex);
   // handle a preparereq message from proposer
-  return paxos_protocol::OK;
-
+  if (a.instance <= instance_h) {
+    assert(instance_h);
+    r.oldinstance = instance_h;
+    r.v_a = values[instance_h];
+    return paxos_protocol::OK;
+  }
+  std::cout << "acceptor::preparereq: a.n.n " << a.n.n << " a.n.m " << a.n.m << std::endl;
+  std::cout << "acceptor::preparereq: n_h.n " << n_h.n << " n_h.m " << n_h.m << std::endl;
+  r.oldinstance = 0;
+  if (a.n > n_h) {
+    n_h = a.n;
+    l->loghigh(n_h);
+    r.n_a = n_a;
+    r.v_a = v_a;
+    return paxos_protocol::OK;
+  }
+  else {
+    std::cout << "acceptor::preparereq: rejected \n";
+    return paxos_protocol::ERR;
+  }
 }
 
 paxos_protocol::status
 acceptor::acceptreq(std::string src, paxos_protocol::acceptarg a, int &r)
 {
-
+  std::cout << "acceptor::acceptreq: v: " << a.v << std::endl;
+  ScopedLock mtx_(&pxs_mutex);
   // handle an acceptreq message from proposer
-
-  return paxos_protocol::OK;
+  if (a.instance <= instance_h) {
+    // assert(instance_h);
+    // r.oldinstance = instance_h;
+    // r.v_a = values[instance_h];
+    // return paxos_protocol::OK;
+    r = paxos_protocol::ERR;
+    return paxos_protocol::ERR;
+  }
+  
+  if (a.n >= n_h) {
+    n_a = a.n;
+    v_a = a.v;
+    l->logprop(a.n, a.v);
+    //return acceptres??
+    r = paxos_protocol::OK;
+    return paxos_protocol::OK;
+  }
+  else {
+    r = paxos_protocol::ERR;
+    return paxos_protocol::ERR;
+  }
 }
 
 paxos_protocol::status
 acceptor::decidereq(std::string src, paxos_protocol::decidearg a, int &r)
 {
-
+  // ScopedLock mtx_(&pxs_mutex);
   // handle an decide message from proposer
+  if (a.instance <= instance_h) {
+    // ignore the message    // or reply with oldinstance, but it won't matter
+    return paxos_protocol::OK;
+  }
+
+  // values[a.instance] = a.v;
+  // instance_h = a.instance;
+  // l->loginstance(a.instance, a.v);
+
+  commit(a.instance, a.v);
 
   return paxos_protocol::OK;
 }
