@@ -331,6 +331,7 @@ rsm::client_invoke(int procno, std::string req, std::string &r)
       assert(pthread_mutex_unlock(&invoke_mutex)==0);
       return rsm_client_protocol::BUSY;
     }
+    breakpoint1();
   }
 
   r = execute(procno, req);
@@ -358,6 +359,7 @@ rsm::invoke(int proc, viewstamp vs, std::string req, int &dummy)
     execute(proc, req);
     myvs = vs;
   }
+  breakpoint1();
   return ret;
 }
 

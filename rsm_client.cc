@@ -32,6 +32,27 @@ void
 rsm_client::primary_failure()
 {
   // For lab 8
+
+  for (unsigned int i = 0; i < known_mems.size(); i++) {
+    sockaddr_in dstsock;
+    make_sockaddr(known_mems[i].c_str(), &dstsock);
+    rpcc *cl = new rpcc(dstsock);
+    std::cout << "rsm_client::primary_failure: bind " << known_mems[i] << std::endl; 
+    int ret = cl->bind(rpcc::to(1000));
+    if (ret < 0) {
+      std::cout << "rsm_client::primary_failure: bind failed " << known_mems[i] << std::endl; 
+      continue;
+    }
+    std::cout << "rsm_client::primary_failure: bind succeded " << known_mems[i] << std::endl; 
+    primary.id = known_mems[i];
+    primary.cl = cl;
+    primary.nref = 0;
+    if (init_members(true)) {
+      std::cout << "rsm_client::primary_failure: init_members succeded\n";
+      break;
+    }
+    std::cout << "rsm_client::primary_failure: init_members failed\n";
+  }
 }
 
 rsm_protocol::status
