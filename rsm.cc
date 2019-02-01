@@ -160,7 +160,7 @@ rsm::recovery()
   set_primary();
       }
     }
-
+    r = true;
     if (r) inviewchange = false;
     printf("recovery: go to sleep %d %d\n", insync, inviewchange);
     pthread_cond_wait(&recovery_cond, &rsm_mutex);
@@ -266,6 +266,10 @@ rsm::commit_change()
     recovery();
     pthread_mutex_lock(&rsm_mutex);
   }
+  pthread_mutex_lock(&invoke_mutex);
+  inviewchange = false;
+  pthread_mutex_unlock(&invoke_mutex);
+  std::cout << "rsm::commit_change: inviewchange " << inviewchange << std::endl; 
   pthread_mutex_unlock(&rsm_mutex);
 }
 
@@ -297,6 +301,7 @@ rsm::client_invoke(int procno, std::string req, std::string &r)
 {
   int ret = rsm_protocol::OK;
   // For lab 8
+  std::cout << "rsm::client_invoke: inviewchange " << inviewchange << std::endl;
   if (inviewchange) {
     return rsm_client_protocol::BUSY;
   }
@@ -316,9 +321,12 @@ rsm::client_invoke(int procno, std::string req, std::string &r)
     handle h(nodes[i]);
     assert(h.get_rpcc() != 0);
 
+    std::cout << "rsm::client_invoke: " << i << " procno " << procno << " myvs " << myvs.vid << " " << myvs.seqno << std::endl;
+
     int r;
     ret = h.get_rpcc()->call(rsm_protocol::invoke, procno, myvs, req, r, rpcc::to(5000));
     if (ret != 0) {
+      std::cout << "rsm::client_invoke: " << i << " failed\n";
       inviewchange = 1;
       assert(pthread_mutex_unlock(&invoke_mutex)==0);
       return rsm_client_protocol::BUSY;

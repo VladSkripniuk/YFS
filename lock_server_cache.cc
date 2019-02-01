@@ -24,6 +24,7 @@ retrythread(void *x) {
 lock_server_cache::lock_server_cache(class rsm *_rsm) 
   : rsm (_rsm)
 {
+  rsm->set_state_transfer(this);
   pthread_mutex_init(&release_acquire_mutex, NULL);
   pthread_t th;
   int r = pthread_create(&th, NULL, &revokethread, (void *) this);
@@ -98,6 +99,7 @@ lock_server_cache::retryer() {
         rpcc *cl;
         cl = lock_client->second.cl;
         
+        std::cout << "lock_server_cache::retryer: amiprimary " << rsm->amiprimary() << std::endl;
         if (rsm->amiprimary()) {
             int r;
             auto ret = cl->call(rlock_protocol::retry, client_and_seqnum.seqnum, lid, r);
@@ -217,4 +219,96 @@ lock_server_cache::subscribe(std::string client_socket, int &r) {
     
     pthread_mutex_unlock(&release_acquire_mutex);
     return lock_protocol::OK;
+}
+
+std::string 
+lock_server_cache::marshal_state() {
+    
+    // lock any needed mutexes
+    assert(pthread_mutex_lock(&release_acquire_mutex) == 0);
+
+    marshall rep;
+    
+    unsigned int lock_clients_size = lock_clients.size();
+    rep << lock_clients_size;
+
+    for (auto it = lock_clients.begin(); it != lock_clients.end(); it++) {
+        std::string client_socket = it->second.client_socket;
+        rep << client_socket;
+    }
+
+    unsigned int locks_size = locks.size();
+    rep << locks_size;
+
+    for (auto it = locks.begin(); it != locks.end(); it++) {
+        lock_protocol::lockid_t lockid = it->first;
+        lock lock_ = it->second;
+
+        rep << lockid;
+        rep << lock_.lock_state;
+        rep << lock_.owner;
+        rep << lock_.seqnum;
+
+        unsigned int waiting_list_size = lock_.waiting_list.size();
+        rep << waiting_list_size;
+
+        for (auto itr = lock_.waiting_list.begin(); itr != lock_.waiting_list.end(); itr++) {
+            rep << itr->client_id;
+            rep << itr->seqnum;
+        }
+    }
+
+    // unlock any mutexes
+    assert(pthread_mutex_unlock(&release_acquire_mutex) == 0);
+    
+    return rep.str();
+}
+
+void
+lock_server_cache::unmarshal_state(std::string state) {
+    // lock any needed mutexes
+    assert(pthread_mutex_lock(&release_acquire_mutex) == 0);
+    
+    unmarshall rep(state);
+    unsigned int lock_clients_size;
+    rep >> lock_clients_size;
+
+    for (unsigned int i = 0; i < lock_clients_size; i++) {
+        std::string client_socket;
+        rep >> client_socket;
+
+        if (lock_clients.find(client_socket) == lock_clients.end()) {
+            lock_client new_lock_client(client_socket);
+            lock_clients.insert(std::pair<std::string, lock_client>(client_socket, new_lock_client));
+        }
+    }
+
+    locks.clear();
+
+    unsigned int locks_size;
+    rep >> locks_size;
+
+    for (unsigned int i = 0; i < locks_size; i++) {
+        lock_protocol::lockid_t lockid;
+        rep >> lockid;
+
+        lock lock_;
+
+        rep >> lock_.lock_state;
+        rep >> lock_.owner;
+        rep >> lock_.seqnum;
+
+        unsigned int waiting_list_size;
+        rep >> waiting_list_size;
+
+        for (unsigned int j = 0; j < waiting_list_size; j++) {
+            lock_client_id_and_seqnum t;
+            rep >> t.client_id;
+            rep >> t.seqnum;
+            lock_.waiting_list.push_back(t);
+        }
+    }
+    
+    // unlock any mutexes
+    assert(pthread_mutex_unlock(&release_acquire_mutex) == 0);
 }

@@ -7,6 +7,7 @@
 #include "lock_server.h"
 
 #include "rsm.h"
+#include "rsm_state_transfer.h"
 
 struct lock_client_id_and_seqnum {
 	std::string client_id;
@@ -55,7 +56,7 @@ public:
 };
 
 
-class lock_server_cache {
+class lock_server_cache : public rsm_state_transfer {
  private:
   class rsm *rsm;
  public:
@@ -67,7 +68,7 @@ class lock_server_cache {
   // lock_protocol::status stat(int clt, lock_protocol::lockid_t lid, int &);
   lock_protocol::status acquire(std::string client_socket, lock_protocol::seqnum_t seqnum, lock_protocol::lockid_t lid, int &r);
   lock_protocol::status release(std::string client_socket, lock_protocol::seqnum_t seqnum, lock_protocol::lockid_t lid, int &r);
-  lock_protocol::status subscribe(std::string client_socke, int &r);
+  lock_protocol::status subscribe(std::string client_socket, int &r);
 
 protected:
   int nacquire = 0;
@@ -156,7 +157,10 @@ protected:
     thread_safe_queue<lock_protocol::lockid_t> revoke_queue; // push_back to safe_queue wakes up revoker
     
     pthread_mutex_t release_acquire_mutex; // this mutex protects locks, lock_clients and most importantly, nacquire
-    
+
+public:
+  virtual void unmarshal_state(std::string state);
+  virtual std::string marshal_state();
 };
 
 #endif
