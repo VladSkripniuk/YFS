@@ -157,14 +157,12 @@ lock_client_cache::acquire(lock_protocol::lockid_t lid) {
                             && lockid_and_seqnum->second == lock->second.seqnum) {
                             break;
                         }
-                        // pthread_cond_wait(&(lock->second.cond_var), &release_acquire_mutex);
-                        // struct timespec max_wait = {0, 0};
-                        // max_wait.tv_sec += 3;
-
+                        pthread_cond_wait(&(lock->second.cond_var), &release_acquire_mutex);
+                       
                         struct timeval tv;
                         struct timespec ts;
 
-                        unsigned timeInMs = 3000;
+                        unsigned timeInMs = 10000;
 
                         gettimeofday(&tv, NULL);
                         ts.tv_sec = time(NULL) + timeInMs / 1000;
