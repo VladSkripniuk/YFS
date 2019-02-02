@@ -101,7 +101,7 @@ rsm_client::init_members(bool send_member_rpc)
     printf("rsm_client::init_members get members!\n");
     assert(pthread_mutex_unlock(&rsm_client_mutex)==0);
     int ret = primary.cl->call(rsm_client_protocol::members, 0, known_mems, 
-            rpcc::to(1000)); 
+            rpcc::to(5000)); 
     assert(pthread_mutex_lock(&rsm_client_mutex)==0);
     if (ret != rsm_protocol::OK)
       return false;

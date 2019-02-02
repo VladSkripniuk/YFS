@@ -334,7 +334,7 @@ config::doheartbeat(std::string m)
   if (h.get_rpcc()) {
     assert(pthread_mutex_unlock(&cfg_mutex)==0);
     ret = h.get_rpcc()->call(paxos_protocol::heartbeat, me, vid, r, 
-			 rpcc::to(1000));
+			 rpcc::to(5000));
     assert(pthread_mutex_lock(&cfg_mutex)==0);
   } 
   if (ret != paxos_protocol::OK) {
