@@ -73,6 +73,7 @@ class rsm : public config_view_change {
   ~rsm() {};
 
   bool amiprimary();
+  bool amiprimary1(); 
   void set_state_transfer(rsm_state_transfer *_stf) { stf = _stf; };
   void recovery();
   void commit_change();

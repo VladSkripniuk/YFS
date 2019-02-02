@@ -54,7 +54,7 @@ lock_server_cache::revoker() {
         rlock_protocol::seqnum_t seqnum = locks[lid].seqnum;
         pthread_mutex_unlock(&release_acquire_mutex);
         
-        if (rsm->amiprimary()) {
+        if (rsm->amiprimary1()) {
             int r;
             auto ret = cl->call(rlock_protocol::revoke, seqnum, lid, r);
             if (ret != rlock_protocol::OK)
@@ -99,8 +99,8 @@ lock_server_cache::retryer() {
         rpcc *cl;
         cl = lock_client->second.cl;
         
-        std::cout << "lock_server_cache::retryer: amiprimary " << rsm->amiprimary() << std::endl;
-        if (rsm->amiprimary()) {
+        std::cout << "lock_server_cache::retryer: amiprimary " << rsm->amiprimary1() << std::endl;
+        if (rsm->amiprimary1()) {
             int r;
             auto ret = cl->call(rlock_protocol::retry, client_and_seqnum.seqnum, lid, r);
             if(ret != rlock_protocol::OK) {

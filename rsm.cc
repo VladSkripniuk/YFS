@@ -266,9 +266,9 @@ rsm::commit_change()
     recovery();
     pthread_mutex_lock(&rsm_mutex);
   }
-  pthread_mutex_lock(&invoke_mutex);
+  // pthread_mutex_lock(&invoke_mutex);
   inviewchange = false;
-  pthread_mutex_unlock(&invoke_mutex);
+  // pthread_mutex_unlock(&invoke_mutex);
   std::cout << "rsm::commit_change: inviewchange " << inviewchange << std::endl; 
   pthread_mutex_unlock(&rsm_mutex);
 }
@@ -311,9 +311,9 @@ rsm::client_invoke(int procno, std::string req, std::string &r)
   assert(pthread_mutex_lock(&invoke_mutex)==0);
 
   std::vector<std::string> nodes;
-  assert(pthread_mutex_lock(&rsm_mutex)==0);
+  // assert(pthread_mutex_lock(&rsm_mutex)==0);
   nodes = cfg->get_curview();
-  assert(pthread_mutex_unlock(&rsm_mutex)==0);
+  // assert(pthread_mutex_unlock(&rsm_mutex)==0);
   // std::cout << "slaves: \n";
   // std::cout << m << std::endl;
 
@@ -325,9 +325,10 @@ rsm::client_invoke(int procno, std::string req, std::string &r)
 
     int r;
     ret = h.get_rpcc()->call(rsm_protocol::invoke, procno, myvs, req, r, rpcc::to(5000));
+    std::cout << "rsm::client_invoke: " << i << " procno " << procno << " myvs " << myvs.vid << " " << myvs.seqno << " done"<< std::endl;
     if (ret != 0) {
       std::cout << "rsm::client_invoke: " << i << " failed\n";
-      inviewchange = 1;
+      // inviewchange = 1;
       assert(pthread_mutex_unlock(&invoke_mutex)==0);
       return rsm_client_protocol::BUSY;
     }
@@ -335,7 +336,7 @@ rsm::client_invoke(int procno, std::string req, std::string &r)
   }
 
   r = execute(procno, req);
-
+  std::cout << "rsm::client_invoke: execute procno " << procno << " myvs " << myvs.vid << " " << myvs.seqno << " done"<< std::endl;
   last_myvs = myvs;
   myvs.seqno += 1;
 
@@ -488,6 +489,16 @@ rsm::amiprimary()
   assert(pthread_mutex_unlock(&rsm_mutex)==0);
   return r;
 }
+
+bool
+rsm::amiprimary1()
+{
+  // assert(pthread_mutex_lock(&rsm_mutex)==0);
+  bool r = amiprimary_wo();
+  // assert(pthread_mutex_unlock(&rsm_mutex)==0);
+  return r;
+}
+
 
 
 // Testing server
