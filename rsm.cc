@@ -318,6 +318,9 @@ rsm::client_invoke(int procno, std::string req, std::string &r)
   // std::cout << m << std::endl;
 
   for (unsigned i = 0; i < nodes.size(); ++i) {
+    if (primary == nodes[i]) {
+      continue;
+    }
     handle h(nodes[i]);
     assert(h.get_rpcc() != 0);
 

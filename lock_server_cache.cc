@@ -143,7 +143,7 @@ lock_server_cache::acquire(std::string client_socket, lock_protocol::seqnum_t se
     }
 
     
-    if (it->second.is_free()) {
+    if (it->second.is_free() ){// || (it->second.owner == client_socket)) {
         auto lock_client = lock_clients.find(client_socket);
         
         lock_client->second.nacquire += 1;
@@ -160,9 +160,20 @@ lock_server_cache::acquire(std::string client_socket, lock_protocol::seqnum_t se
         }
         
     } else {
-        locks[lid].add_to_waiting_list(client_socket, seqnum);
-        
-        revoke_queue.push_back(lid);
+
+        int xxx = 1;
+        for (auto itx = locks[lid].waiting_list.begin(); itx != locks[lid].waiting_list.end(); itx++) {
+            if (itx->client_id == client_socket) {
+                xxx = 0;
+                break;
+            }
+        }
+
+        if (xxx) {
+            locks[lid].add_to_waiting_list(client_socket, seqnum);
+            
+            revoke_queue.push_back(lid);
+        }
         std::cout << "acquire request retry: " << client_socket << " " << lid << std::endl;
         
         r = lock_protocol::RETRY;
