@@ -97,6 +97,10 @@ proposer::run(int instance, std::vector<std::string> c_nodes, std::string c_v)
   std::string v;
   bool r = false;
 
+  if (c_v.empty()) {
+    return false;
+  }
+
   pthread_mutex_lock(&pxs_mutex);
   printf("start: initiate paxos for %s w. i=%d v=%s stable=%d\n",
 	 print_members(c_nodes).c_str(), instance, c_v.c_str(), stable);
@@ -213,7 +217,11 @@ proposer::accept(unsigned instance, std::vector<std::string> &accepts,
     a.n = my_n;
     a.v = v;
 
-    assert(h.get_rpcc());
+    // assert(h.get_rpcc());
+    if (!h.get_rpcc()) {
+      std::cout << "proposer::accept: get_rpcc() failure " << nodes[i] << std::endl;
+      continue;
+    }
     if (h.get_rpcc()->call(paxos_protocol::acceptreq, me, a, r, rpcc::to(1000)) == paxos_protocol::OK) {
         accepts.push_back(nodes[i]);
     }
@@ -233,7 +241,11 @@ proposer::decide(unsigned instance, std::vector<std::string> accepts,
     a.instance = instance;
     a.v = v;
 
-    assert(h.get_rpcc());
+    // assert(h.get_rpcc());
+    if (!h.get_rpcc()) {
+      std::cout << "proposer::decide: get_rpcc() failure " << accepts[i] << std::endl;
+      continue;
+    }
     h.get_rpcc()->call(paxos_protocol::decidereq, me, a, r, rpcc::to(1000));
   }
 }
